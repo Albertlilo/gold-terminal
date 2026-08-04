@@ -72,7 +72,8 @@ const getYieldCurve = async (req, res) => {
       twoYear: twoYear.latest.value,
       tenYear: tenYear.latest.value,
       spread,
-      status
+      status,
+      fetchedAt: new Date().toISOString()
     });
   } catch (error) {
     res.status(500).send(error.massage);
