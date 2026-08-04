@@ -8,12 +8,17 @@ const express = require("express");
 const app = express();
 app.use(express.json());
 
-app.get("/", (req, res) => {
-    res.send("Hello World!");
-});
 
 app.get("/api/health", (req, res) => {
     res.status(200).json({ status: "OK", message: "API is healthy" });
+});
+
+app.get("/", (req,res) => {
+    res.json({
+        name: "Gold Terminal API",
+        version: "1.0.0",
+        status: "Running 🚀"
+    });
 });
 
 app.use("/api/users", usersRouters);

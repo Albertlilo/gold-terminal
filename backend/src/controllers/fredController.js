@@ -55,7 +55,32 @@ const getTenYearYield = async (req, res) => {
     res.status(500).send(error.message);
 }
 };
+
+const getYieldCurve = async (req, res) => {
+  try {
+    const twoYear = await buildSeriesResponse(
+      "DGS2", 
+      "US 2Y Treasury Yield"
+    );
+    const tenYear = await buildSeriesResponse(
+      "DGS10",
+      "US 10Y Treasury Yield"
+    );
+    const spread = Number((tenYear.latest.value - twoYear.latest.value).toFixed(2));
+    const status = spread < 0 ? "Inverted" : "Normal";
+    res.status(200).json({
+      twoYear: twoYear.latest.value,
+      tenYear: tenYear.latest.value,
+      spread,
+      status
+    });
+  } catch (error) {
+    res.status(500).send(error.massage);
+  }
+}
+
 module.exports ={
     getTwoYearYield,
-    getTenYearYield
+    getTenYearYield,
+    getYieldCurve
 };
