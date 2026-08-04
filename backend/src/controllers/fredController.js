@@ -1,7 +1,7 @@
 const {getSeriesObservations} = require("../services/fredService");
 
-const buildSeriesResponse = async (seriesId, seriesName) => {
-  const rawObservations = await getSeriesObservations(seriesId);
+const buildSeriesResponse = async (seriesId, seriesName, limit = 10) => {
+  const rawObservations = await getSeriesObservations(seriesId, limit);
 
   const observations = rawObservations
     .filter((item) => item.value !== ".")
@@ -80,8 +80,41 @@ const getYieldCurve = async (req, res) => {
   }
 }
 
+const getFedFundsRate = async (req, res) => {
+  try{
+    const data = await buildSeriesResponse(
+      "DFF",
+      "Federal Funds Effective Rate"
+    );
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+}
+
+const getCpi = async (req, res) => {
+  try{
+    const data = await buildSeriesResponse(
+      "CPIAUCSL",
+      "US Consumer Price Index",
+      14
+    );
+    const latest = data.observations[0];
+    const yearAgo = data.observations[12];
+    const yearOverYearinflation = Number((((latest.value - yearAgo.value) / yearAgo.value) * 100) .toFixed(2)); 
+
+    res.status(200).json({...data,
+      yearOverYearinflation
+    });
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+}
+
 module.exports ={
     getTwoYearYield,
     getTenYearYield,
-    getYieldCurve
+    getYieldCurve,
+    getFedFundsRate,
+    getCpi
 };
