@@ -16,6 +16,59 @@ const scoreChange = (
   return isUp ? -weight : weight;
 };
 
+const scoringRules = {
+  realYield: {
+    bullishWhen: "down",
+    weight: 3,
+    label: "10Y real yield"
+  },
+  dollar: {
+    bullishWhen: "down",
+    weight: 3,
+    label: "US dollar"
+  },
+  inflationExpectations: {
+    bullishWhen: "up",
+    weight: 2,
+    label: "10Y inflation expectations"
+  },
+  corePce: {
+    bullishWhen: "up",
+    weight: 2,
+    label: "Core PCE inflation"
+  },
+  ppi: {
+    bullishWhen: "up",
+    weight: 1,
+    label: "Producer prices"
+  },
+  financialStress: {
+    bullishWhen: "up",
+    weight: 2,
+    label: "Financial stress"
+  },
+  vix: {
+    bullishWhen: "up",
+    weight: 1,
+    label: "Market volatility"
+  },
+  highYieldSpread: {
+    bullishWhen: "up",
+    weight: 1,
+    label: "High-yield credit spread"
+  },
+  adpEmployment: {
+    bullishWhen: "down",
+    weight: 1,
+    label: "ADP hiring momentum"
+  },
+  nonfarmPayrolls: {
+    bullishWhen: "down",
+    weight: 2,
+    label: "NFP hiring momentum"
+  }
+};
+
 const calculateGoldScore = ({
   realYieldChange,
   dollarChange,
@@ -28,31 +81,30 @@ const calculateGoldScore = ({
   corePceChange,
   ppiChange
 }) => {
-  const scores = {
-    realYield: scoreChange(realYieldChange, "down", 3),
-    dollar: scoreChange(dollarChange, "down", 3),
-    inflationExpectations: scoreChange(
-      inflationExpectationChange,
-      "up",
-      2
-    ),
-    corePce: scoreChange(corePceChange, "up", 2),
-    ppi: scoreChange(ppiChange, "up", 1),
+  
+const indicatorChanges = {
+  realYield: realYieldChange,
+  dollar: dollarChange,
+  inflationExpectations: inflationExpectationChange,
+  corePce: corePceChange,
+  ppi: ppiChange,
+  financialStress: financialStressChange,
+  vix: vixChange,
+  highYieldSpread: highYieldSpreadChange,
+  adpEmployment: adpMomentumChange,
+  nonfarmPayrolls: nfpMomentumChange
+};
 
-    financialStress: scoreChange(
-      financialStressChange,
-      "up",
-      2
-    ),
-    vix: scoreChange(vixChange, "up", 1),
-    highYieldSpread: scoreChange(
-      highYieldSpreadChange,
-      "up",
-      1
-    ),
-    adpEmployment: scoreChange(adpMomentumChange, "down", 1),
-    nonfarmPayrolls: scoreChange(nfpMomentumChange, "down", 2)
-  };
+const scores = Object.fromEntries(
+  Object.entries(scoringRules).map(([indicator, rule]) => [
+    indicator,
+    scoreChange(
+      indicatorChanges[indicator],
+      rule.bullishWhen,
+      rule.weight
+    )
+  ])
+);
 
   const driverLabels = {
   realYield: "10Y real yield",
@@ -70,7 +122,7 @@ const calculateGoldScore = ({
   const drivers = Object.entries(scores)
   .filter(([, score]) => score !== 0)
   .map(([indicator, score]) => ({
-    indicator: driverLabels[indicator],
+    indicator: scoringRules[indicator].label,
     impact: score > 0 ? "Bullish" : "Bearish",
     points: score
   }))
