@@ -2,7 +2,8 @@ const express = require("express");
 const {getTwoYearYield, getTenYearYield, getYieldCurve, getFedFundsRate, getCpi, getUnemploymentRate, getRetailSales, getIndustrialProduction, getConsumerSentiment, getHousingStarts, getRealGdp,
     getInitialClaims,
     getDollarIndex,
-    getM2MoneySupply, getDashboardSummary } = require("../controllers/fredController");
+    getM2MoneySupply, getDashboardSummary, getTenYearRealYield, getFiveYearBreakevenInflation, getTenYearBreakevenInflation, 
+getOilPrice, getFinancialStress, getVix, getHighYieldSpread, getReverseRepo, getTreasuryGeneralAccount }  = require("../controllers/fredController");
 
 const router = express.Router();
 
@@ -21,6 +22,14 @@ router.get("/initial-claims", getInitialClaims);
 router.get("/dollar-index", getDollarIndex);
 router.get("/m2-money-supply", getM2MoneySupply);
 router.get("/dashboard-summary", getDashboardSummary);
-
+router.get("/10y-real-yield", getTenYearRealYield);
+router.get("/5y-breakeven-inflation", getFiveYearBreakevenInflation);
+router.get("/10y-breakeven-inflation", getTenYearBreakevenInflation);
+router.get("/oil-price", getOilPrice);
+router.get("/financial-stress", getFinancialStress);
+router.get("/vix", getVix);
+router.get("/high-yield-spread", getHighYieldSpread);
+router.get("/reverse-repo", getReverseRepo);
+router.get("/treasury-general-account", getTreasuryGeneralAccount);
 
 module.exports = router;

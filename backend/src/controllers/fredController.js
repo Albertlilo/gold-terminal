@@ -308,6 +308,141 @@ const getDashboardSummary = async (req, res) => {
   }
 };
 
+const getTenYearRealYield = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "DFII10",
+      "US 10Y Real Yield",
+      10,
+      "%"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getFiveYearBreakevenInflation = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "T5YIE",
+      "US 5Y Breakeven Inflation Rate",
+      10,
+      "%"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getTenYearBreakevenInflation = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "T10YIE",
+      "US 10Y Breakeven Inflation Rate",
+      10,
+      "%"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getOilPrice = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "DCOILWTICO",
+      "WTI Crude Oil Price",
+      10,
+      "Dollars per Barrel"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getFinancialStress = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "STLFSI4",
+      "St. Louis Fed Financial Stress Index",
+      10,
+      "Index"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getVix = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "VIXCLS",
+      "CBOE Volatility Index",
+      10,
+      "Index"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getHighYieldSpread = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "BAMLH0A0HYM2",
+      "US High Yield Credit Spread",
+      10,
+      "%"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getReverseRepo = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "RRPONTSYD",
+      "Overnight Reverse Repo Usage",
+      10,
+      "Billions of Dollars"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getTreasuryGeneralAccount = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "WDTGAL",
+      "US Treasury General Account",
+      10,
+      "Millions of Dollars"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
 module.exports ={
     getTwoYearYield,
     getTenYearYield,
@@ -323,5 +458,14 @@ module.exports ={
     getInitialClaims,
     getDollarIndex,
     getM2MoneySupply,
-    getDashboardSummary
+    getDashboardSummary,
+    getTenYearRealYield,
+    getFiveYearBreakevenInflation,
+    getTenYearBreakevenInflation,
+    getOilPrice, 
+    getFinancialStress, 
+    getVix,
+    getHighYieldSpread,
+    getReverseRepo,
+    getTreasuryGeneralAccount
 };
