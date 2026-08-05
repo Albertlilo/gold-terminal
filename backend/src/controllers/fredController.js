@@ -124,11 +124,135 @@ const getUnemploymentRate = async (req, res) => {
   }
 }
 
+const getRetailSales = async (req, res) => {
+  try{
+    const data = await buildSeriesResponse(
+      "RSAFS",
+      "US Retail Sales",
+      10,
+      "Millions of Dollars"
+    );
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+}
+
+const getIndustrialProduction = async (req, res) => {
+  try{
+    const data = await buildSeriesResponse(
+      "INDPRO",
+      "US Industrial Production Index",
+      10,
+      "Index"
+    );
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+}
+
+const getConsumerSentiment = async (req, res) => {
+  try{
+    const data = await buildSeriesResponse(
+      "UMCSENT",
+      "US Consumer Sentiment",
+      10,
+      "Index"
+    );
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+}
+
+const getHousingStarts = async (req, res) => {
+  try{
+    const data = await buildSeriesResponse(
+      "HOUST",
+      "US Housing Starts",
+      10,
+      "Thousands of Units"
+    );
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+}
+
+const getRealGdp = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "GDPC1",
+      "US Real GDP",
+      10,
+      "Billions of Chained 2017 Dollars"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getInitialClaims = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "ICSA",
+      "US Initial Jobless Claims",
+      10,
+      "Claims"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getDollarIndex = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "DTWEXBGS",
+      "Broad US Dollar Index",
+      10,
+      "Index"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
+const getM2MoneySupply = async (req, res) => {
+  try {
+    const data = await buildSeriesResponse(
+      "M2SL",
+      "US M2 Money Supply",
+      10,
+      "Billions of Dollars"
+    );
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
 module.exports ={
     getTwoYearYield,
     getTenYearYield,
     getYieldCurve,
     getFedFundsRate,
     getCpi,
-    getUnemploymentRate
+    getUnemploymentRate,
+    getRetailSales,
+    getIndustrialProduction,
+    getConsumerSentiment,
+    getHousingStarts,
+    getRealGdp,
+    getInitialClaims,
+    getDollarIndex,
+    getM2MoneySupply
 };
