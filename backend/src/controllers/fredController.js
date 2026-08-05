@@ -240,6 +240,74 @@ const getM2MoneySupply = async (req, res) => {
   }
 };
 
+const getDashboardSummary = async (req, res) => {
+  try {
+    const [
+      fedFunds,
+      twoYear,
+      tenYear,
+      cpi,
+      unemployment,
+      retailSales,
+      industrialProduction
+    ] = await Promise.all([
+      buildSeriesResponse("DFF", "Federal Funds Effective Rate"),
+      buildSeriesResponse("DGS2", "US 2Y Treasury Yield"),
+      buildSeriesResponse("DGS10", "US 10Y Treasury Yield"),
+      buildSeriesResponse("CPIAUCSL", "US Consumer Price Index", 14, "Index"),
+      buildSeriesResponse("UNRATE", "US Unemployment Rate"),
+      buildSeriesResponse(
+        "RSAFS",
+        "US Retail Sales",
+        10,
+        "Millions of Dollars"
+      ),
+      buildSeriesResponse(
+        "INDPRO",
+        "US Industrial Production Index",
+        10,
+        "Index"
+      )
+    ]);
+
+    const yieldCurveSpread = Number(
+      (tenYear.latest.value - twoYear.latest.value).toFixed(2)
+    );
+
+    const cpiLatest = cpi.observations[0];
+    const cpiYearAgo = cpi.observations[12];
+
+    const yearOverYearInflation = Number(
+      (
+        ((cpiLatest.value - cpiYearAgo.value) /
+          cpiYearAgo.value) *
+        100
+      ).toFixed(2)
+    );
+
+    res.status(200).json({
+      rates: {
+        fedFunds: fedFunds.latest,
+        twoYear: twoYear.latest,
+        tenYear: tenYear.latest,
+        yieldCurveSpread
+      },
+      inflation: {
+        cpiIndex: cpiLatest,
+        yearOverYearInflation
+      },
+      economy: {
+        unemployment: unemployment.latest,
+        retailSales: retailSales.latest,
+        industrialProduction: industrialProduction.latest
+      },
+      fetchedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+};
+
 module.exports ={
     getTwoYearYield,
     getTenYearYield,
@@ -254,5 +322,6 @@ module.exports ={
     getRealGdp,
     getInitialClaims,
     getDollarIndex,
-    getM2MoneySupply
+    getM2MoneySupply,
+    getDashboardSummary
 };

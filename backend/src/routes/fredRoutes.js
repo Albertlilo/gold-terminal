@@ -2,7 +2,7 @@ const express = require("express");
 const {getTwoYearYield, getTenYearYield, getYieldCurve, getFedFundsRate, getCpi, getUnemploymentRate, getRetailSales, getIndustrialProduction, getConsumerSentiment, getHousingStarts, getRealGdp,
     getInitialClaims,
     getDollarIndex,
-    getM2MoneySupply } = require("../controllers/fredController");
+    getM2MoneySupply, getDashboardSummary } = require("../controllers/fredController");
 
 const router = express.Router();
 
@@ -20,6 +20,7 @@ router.get("/real-gdp", getRealGdp);
 router.get("/initial-claims", getInitialClaims);
 router.get("/dollar-index", getDollarIndex);
 router.get("/m2-money-supply", getM2MoneySupply);
+router.get("/dashboard-summary", getDashboardSummary);
 
 
 module.exports = router;
