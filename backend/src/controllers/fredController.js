@@ -1,6 +1,6 @@
 const {getSeriesObservations} = require("../services/fredService");
 
-const buildSeriesResponse = async (seriesId, seriesName, limit = 10) => {
+const buildSeriesResponse = async (seriesId, seriesName, limit = 10, unit = "%") => {
   const rawObservations = await getSeriesObservations(seriesId, limit);
 
   const observations = rawObservations
@@ -24,7 +24,7 @@ const buildSeriesResponse = async (seriesId, seriesName, limit = 10) => {
 
   return {
     series: seriesName,
-    unit: "%",
+    unit,
     latest,
     previous,
     change,
@@ -97,7 +97,8 @@ const getCpi = async (req, res) => {
     const data = await buildSeriesResponse(
       "CPIAUCSL",
       "US Consumer Price Index",
-      14
+      14,
+      "index"
     );
     const latest = data.observations[0];
     const yearAgo = data.observations[12];
@@ -111,10 +112,23 @@ const getCpi = async (req, res) => {
   }
 }
 
+const getUnemploymentRate = async (req, res) => {
+  try{
+    const data = await buildSeriesResponse(
+      "UNRATE",
+      "US Unemployment Rate"
+    );
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+}
+
 module.exports ={
     getTwoYearYield,
     getTenYearYield,
     getYieldCurve,
     getFedFundsRate,
-    getCpi
+    getCpi,
+    getUnemploymentRate
 };
