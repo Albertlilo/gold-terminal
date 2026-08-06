@@ -15,6 +15,41 @@ const getSeriesObservations = async (seriesId, limit = 10) => {
     return response.data.observations;
 };
 
+const buildSeriesResponse = async (seriesId, seriesName, limit = 10, unit = "%") => {
+  const rawObservations = await getSeriesObservations(seriesId, limit);
+
+  const observations = rawObservations
+    .filter((item) => item.value !== ".")
+    .map((item) => ({
+      date: item.date,
+      value: Number(item.value)
+    }));
+
+  const latest = observations[0];
+  const previous = observations[1];
+
+  const change = Number(
+    (latest.value - previous.value).toFixed(2)
+  );
+
+  const direction =
+    change > 0 ? "up" :
+    change < 0 ? "down" :
+    "flat";
+
+  return {
+    series: seriesName,
+    unit,
+    latest,
+    previous,
+    change,
+    direction,
+    fetchedAt: new Date().toISOString(),
+    observations
+  };
+};
+
 module.exports = {
-    getSeriesObservations
+    getSeriesObservations,
+    buildSeriesResponse
 };
