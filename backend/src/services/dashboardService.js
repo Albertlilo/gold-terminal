@@ -24,7 +24,14 @@ const getDashboardData = async () => {
     reverseRepo,
     treasuryGeneralAccount,
     corePce,
-    ppi
+    ppi,
+    realGdp,
+    industrialProduction,
+    retailSales,
+    consumerSentiment,
+    housingStarts,
+    initialClaims,
+    unemploymentRate
   ] = await Promise.all([
     buildSeriesResponse("DFF", "Federal Funds Effective Rate"),
     buildSeriesResponse("DGS2", "US 2Y Treasury Yield"),
@@ -42,7 +49,14 @@ const getDashboardData = async () => {
     buildSeriesResponse("RRPONTSYD", "Reverse Repo"),
     buildSeriesResponse("WTREGEN", "Treasury General Account"),
     buildSeriesResponse("PCEPILFE", "Core PCE"),
-    buildSeriesResponse("PPIACO", "PPI")
+    buildSeriesResponse("PPIACO", "PPI"),
+    buildSeriesResponse("GDPC1", "Real GDP"),
+    buildSeriesResponse("INDPRO", "Industrial Production"),
+    buildSeriesResponse("RSAFS", "Retail Sales"),
+    buildSeriesResponse("UMCSENT", "Consumer Sentiment"),
+    buildSeriesResponse("HOUST", "Housing Starts"),
+    buildSeriesResponse("ICSA", "Initial Claims"),
+    buildSeriesResponse("UNRATE", "Unemployment Rate")
   ]);
 
   const yieldCurveSpread = Number(
@@ -62,7 +76,24 @@ const goldScore = calculateGoldScore({
   ppi
 });
 
+const bullishDrivers = goldScore.drivers
+  .filter(driver => driver.points > 0)
+  .slice(0, 3);
+
+const bearishDrivers = goldScore.drivers
+  .filter(driver => driver.points < 0)
+  .slice(0, 3);
+
+  const goldSummary =
+  goldScore.bias === "Neutral"
+    ? "Balanced Macro Forces"
+    : `${goldScore.bias} Macro Bias`;
+
   return {
+    meta: {
+    generatedAt: new Date().toISOString(),
+    source: "FRED"
+    },
     rates: {
       fedFunds: fedFunds.latest,
       twoYear: twoYear.latest,
@@ -71,7 +102,9 @@ const goldScore = calculateGoldScore({
     },
     inflation: {
       fiveYearBreakeven: fiveYearBreakeven.latest,
-      tenYearBreakeven: tenYearBreakeven.latest
+      tenYearBreakeven: tenYearBreakeven.latest,
+      corePce: corePce.latest,
+      ppi: ppi.latest
     },
     currency: {
       dollarIndex: dollarIndex.latest
@@ -85,6 +118,7 @@ const goldScore = calculateGoldScore({
       highYieldSpread: highYieldSpread.latest
     },
     labour: {
+      unemploymentRate: unemploymentRate.latest,
       nonfarmPayrolls: nonfarmPayrolls.latest,
       adpEmployment: adpEmployment.latest
     },
@@ -94,9 +128,29 @@ const goldScore = calculateGoldScore({
      treasuryGeneralAccount: treasuryGeneralAccount.latest
     },
     gold: {
-     score: goldScore
+     summary: goldSummary,
+     score: goldScore,
+     topBullishDrivers: bullishDrivers,
+     topBearishDrivers: bearishDrivers
     },
-
+    market: {
+     xauusd: null,
+     dxy: null,
+     status: "Market data source not connected yet"
+    },
+    growth: {
+    realGdp: realGdp.latest,
+    industrialProduction: industrialProduction.latest,
+    retailSales: retailSales.latest
+    },
+    consumerHousing: {
+    consumerSentiment: consumerSentiment.latest,
+    housingStarts: housingStarts.latest,
+    initialClaims: initialClaims.latest
+    },
+    policy: {
+    fedFunds: fedFunds.latest
+    },
   };
 };
 
