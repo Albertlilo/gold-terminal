@@ -1,4 +1,8 @@
 const {
+  getMarketSnapshot
+} = require("./marketService");
+
+const {
   buildSeriesResponse
 } = require("./fredService");
 
@@ -58,6 +62,8 @@ const getDashboardData = async () => {
     buildSeriesResponse("ICSA", "Initial Claims"),
     buildSeriesResponse("UNRATE", "Unemployment Rate")
   ]);
+
+  const marketSnapshot = await getMarketSnapshot();
 
   const yieldCurveSpread = Number(
   (tenYear.latest.value - twoYear.latest.value).toFixed(2)
@@ -133,11 +139,7 @@ const bearishDrivers = goldScore.drivers
      topBullishDrivers: bullishDrivers,
      topBearishDrivers: bearishDrivers
     },
-    market: {
-     xauusd: null,
-     dxy: null,
-     status: "Market data source not connected yet"
-    },
+    market: marketSnapshot,
     growth: {
     realGdp: realGdp.latest,
     industrialProduction: industrialProduction.latest,
