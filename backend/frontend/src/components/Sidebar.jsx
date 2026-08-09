@@ -18,7 +18,12 @@ function Sidebar({ activePage, setActivePage }) {
           Gold Score
         </p>
 
-        <p>Macro</p>
+        <p
+  className={activePage === "macro" ? "active-nav" : ""}
+  onClick={() => setActivePage("macro")}
+>
+  Macro
+</p>
         <p>Markets</p>
       </nav>
     </aside>

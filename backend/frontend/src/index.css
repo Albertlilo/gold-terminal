@@ -390,3 +390,25 @@ body {
     gap: 10px;
   }
 }
+
+.dashboard-section {
+  margin-top: 32px;
+}
+
+.section-heading {
+  margin-bottom: 14px;
+}
+
+.section-heading h2 {
+  margin: 6px 0 0;
+  font-size: 20px;
+}
+
+.dashboard-section .card-grid {
+  margin-top: 0;
+}
+
+.sidebar nav p.active-nav {
+  color: #d4af37;
+  font-weight: 600;
+}
