@@ -11,7 +11,7 @@ function App() {
 
   useEffect(() => {
     const fetchDashboard = () => {
-      fetch("http://localhost:3000/api/fred/dashboard")
+      fetch("https://gold-terminal-ufv4.onrender.com/api/fred/dashboard")
         .then((response) => response.json())
         .then((data) => setDashboardData(data))
         .catch((error) => console.error(error));
