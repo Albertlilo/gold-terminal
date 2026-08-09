@@ -412,3 +412,75 @@ body {
   color: #d4af37;
   font-weight: 600;
 }
+
+@media (max-width: 700px) {
+  .app {
+    display: block;
+  }
+
+  .sidebar {
+    position: static;
+    width: 100%;
+    min-height: auto;
+    padding: 18px 20px;
+    border-right: none;
+    border-bottom: 1px solid #2a2a2a;
+  }
+
+  .sidebar h2 {
+    margin-bottom: 16px;
+  }
+
+  .sidebar nav {
+    display: flex;
+    gap: 18px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .sidebar nav p {
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  .dashboard {
+    margin-left: 0;
+    width: 100%;
+    padding: 24px 18px 90px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .status-area {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .score-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .drivers-section {
+    grid-template-columns: 1fr;
+  }
+
+  .gold-score-header {
+    flex-direction: column;
+  }
+
+  .gold-score-bias {
+    text-align: left;
+  }
+
+  .score-driver-row {
+    gap: 12px;
+  }
+}
