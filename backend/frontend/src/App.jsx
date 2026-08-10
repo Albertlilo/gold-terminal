@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import GoldPriceChart from "./components/GoldPriceChart";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import MetricCard from "./components/MetricCard";
 import DriverList from "./components/DriverList";
@@ -8,12 +9,50 @@ function App() {
   const [dashboardData, setDashboardData] = useState(null);
   const [activePage, setActivePage] = useState("home");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const previousGoldPrice = useRef(null);
+  const [goldMovement, setGoldMovement] = useState("Waiting...");
+  const [goldChange, setGoldChange] = useState(0);
+  const [goldChangePercent, setGoldChangePercent] = useState(0);
+  const [goldHistory, setGoldHistory] = useState([]);
 
   useEffect(() => {
     const fetchDashboard = () => {
       fetch("https://gold-terminal-ufv4.onrender.com/api/fred/dashboard")
         .then((response) => response.json())
-        .then((data) => setDashboardData(data))
+        .then((data) => {
+          const newGoldPrice = data?.market?.xauusd?.price;
+          if (newGoldPrice !== undefined) {
+            setGoldHistory((history) => [
+              ...history.slice(-19),
+              {
+                price: newGoldPrice,
+                time: new Date().toLocaleTimeString(),
+              },
+            ]);
+          }
+
+          if (
+            previousGoldPrice.current !== null &&
+            newGoldPrice !== undefined
+          ) {
+            const change = newGoldPrice - previousGoldPrice.current;
+            const changePercent =
+              (change / previousGoldPrice.current) * 100;
+
+            setGoldChange(change);
+            setGoldChangePercent(changePercent);
+            if (newGoldPrice > previousGoldPrice.current) {
+              setGoldMovement("↑ Rising");
+            } else if (newGoldPrice < previousGoldPrice.current) {
+              setGoldMovement("↓ Falling");
+            } else {
+              setGoldMovement("→ Flat");
+            }
+          }
+
+          previousGoldPrice.current = newGoldPrice;
+          setDashboardData(data);
+        })
         .catch((error) => console.error(error));
     };
 
@@ -433,6 +472,144 @@ function App() {
                   label="Dollar"
                   value={dashboardData?.currency?.dollarIndex?.value ?? "--"}
                   description="Broad US dollar index"
+                />
+              </div>
+            </section>
+          </>
+        )}
+        {activePage === "markets" && (
+          <>
+            <div className="dashboard-header">
+              <div>
+                <h1>Markets</h1>
+                <p>Price action and market confirmation</p>
+              </div>
+
+              <div className="status-area">
+                <span className="status-badge">Live</span>
+                <span className="last-updated">
+                  {currentTime.toLocaleTimeString()}
+                </span>
+              </div>
+            </div>
+
+            <section className="dashboard-section">
+              <div className="section-heading">
+                <span className="section-label">Primary Market</span>
+                <h2>Gold</h2>
+              </div>
+
+              <div className="card-grid">
+                <MetricCard
+                  label="XAUUSD"
+                  value={goldPrice}
+                  description="Live gold spot price"
+                  className="gold-card"
+                />
+                <MetricCard
+                  label="Gold Movement"
+                  value={goldMovement}
+                  description="Change since previous update"
+                  valueClassName={
+                    goldMovement.includes("Rising")
+                      ? "movement-up"
+                      : goldMovement.includes("Falling")
+                        ? "movement-down"
+                        : "movement-flat"
+                  }
+                />
+                <MetricCard
+                  label="Price Change"
+                  value={`${goldChange >= 0 ? "+" : ""}${goldChange.toFixed(2)}`}
+                  description={`${goldChangePercent >= 0 ? "+" : ""}${goldChangePercent.toFixed(2)}% since previous update`}
+                  valueClassName={
+                    goldChange > 0
+                      ? "movement-up"
+                      : goldChange < 0
+                        ? "movement-down"
+                        : "movement-flat"
+                  }
+                />
+
+                <MetricCard
+                  label="Gold Bias"
+                  value={dashboardData?.gold?.score?.bias ?? "--"}
+                  description={goldSummary}
+                />
+              </div>
+            </section>
+<GoldPriceChart history={goldHistory} />
+            <section className="dashboard-section">
+              <div className="section-heading">
+                <span className="section-label">Rates Market</span>
+                <h2>Treasury Confirmation</h2>
+              </div>
+
+              <div className="card-grid">
+                <MetricCard
+                  label="2Y Treasury"
+                  value={dashboardData?.rates?.twoYear?.value ?? "--"}
+                  description="Front-end yield"
+                />
+
+                <MetricCard
+                  label="10Y Treasury"
+                  value={dashboardData?.rates?.tenYear?.value ?? "--"}
+                  description="Long-term yield"
+                />
+
+                <MetricCard
+                  label="10Y Real Yield"
+                  value={realYield}
+                  description="Key gold pressure"
+                />
+              </div>
+            </section>
+
+            <section className="dashboard-section">
+              <div className="section-heading">
+                <span className="section-label">Risk Market</span>
+                <h2>Risk Confirmation</h2>
+              </div>
+
+              <div className="card-grid">
+                <MetricCard
+                  label="VIX"
+                  value={vix}
+                  description="Equity volatility"
+                />
+
+                <MetricCard
+                  label="High-Yield Spread"
+                  value={dashboardData?.risk?.highYieldSpread?.value ?? "--"}
+                  description="Credit stress"
+                />
+
+                <MetricCard
+                  label="Financial Stress"
+                  value={dashboardData?.risk?.financialStress?.value ?? "--"}
+                  description="System stress"
+                />
+              </div>
+            </section>
+
+            <section className="dashboard-section">
+              <div className="section-heading">
+                <span className="section-label">Currency</span>
+                <h2>Dollar Confirmation</h2>
+              </div>
+
+              <div className="card-grid">
+                <MetricCard
+                  label="Broad USD Index"
+                  value={dollarIndex}
+                  description="FRED trade-weighted dollar"
+                />
+
+                <MetricCard
+                  label="DXY"
+                  value="--"
+                  description="Not connected yet"
                 />
               </div>
             </section>
