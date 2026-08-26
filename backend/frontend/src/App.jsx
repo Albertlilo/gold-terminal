@@ -1,3 +1,4 @@
+import IndicatorsPage from "./pages/IndicatorsPage";
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import HomePage from "./pages/HomePage";
@@ -211,6 +212,10 @@ function App() {
             sessionRange={sessionRange}
           />
         )}
+
+        {activePage === "indicators" && (
+  <IndicatorsPage currentTime={currentTime} />
+)}
       </main>
     </div>
   );
