@@ -535,7 +535,25 @@ function HomePage({
           </div>
         </div>
       </section>
+<section className="home-geopolitical-panel">
+  <div>
+    <span className="section-label">
+      Geopolitical Risk
+    </span>
 
+    <h2>Coming Soon</h2>
+
+    <p>
+      Future feed will track gold-relevant geopolitical risk:
+      war risk, sanctions, oil shocks, central-bank tension,
+      and major global instability headlines.
+    </p>
+  </div>
+
+  <span className="geo-status-badge">
+    Not Connected Yet
+  </span>
+</section>
       {/* STRONGEST FORCES */}
 
       <section className="home-force-grid">

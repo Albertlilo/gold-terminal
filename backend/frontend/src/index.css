@@ -1971,3 +1971,45 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* GEOPOLITICAL RISK PLACEHOLDER */
+
+.home-geopolitical-panel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 24px;
+  padding: 24px;
+  background: #141414;
+  border: 1px solid #3a2f16;
+  border-radius: 16px;
+}
+
+.home-geopolitical-panel h2 {
+  margin: 7px 0 10px;
+}
+
+.home-geopolitical-panel p {
+  max-width: 720px;
+  margin: 0;
+  color: #aaa;
+  line-height: 1.6;
+}
+
+.geo-status-badge {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  color: #d4af37;
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .home-geopolitical-panel {
+    flex-direction: column;
+  }
+}
