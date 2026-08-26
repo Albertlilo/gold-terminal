@@ -30,6 +30,48 @@ function HomePage({
   const confidence = score?.confidence ?? "--";
   const lean = score?.lean ?? "--";
 
+  const twoYear =
+    dashboardData?.rates?.twoYear?.value ?? "--";
+
+  const yieldCurve =
+    dashboardData?.rates?.yieldCurveSpread?.value ?? "--";
+
+  const fiveYearBreakeven =
+    dashboardData?.inflation?.fiveYearBreakeven?.value ?? "--";
+
+  const corePce =
+    dashboardData?.inflation?.corePce?.value ?? "--";
+
+  const ppi =
+    dashboardData?.inflation?.ppi?.value ?? "--";
+
+  const highYieldSpread =
+    dashboardData?.risk?.highYieldSpread?.value ?? "--";
+
+  const financialStress =
+    dashboardData?.risk?.financialStress?.value ?? "--";
+
+  const nonfarmPayrolls =
+    dashboardData?.labour?.nonfarmPayrolls?.value ?? "--";
+
+  const adpEmployment =
+    dashboardData?.labour?.adpEmployment?.value ?? "--";
+
+  const initialClaims =
+    dashboardData?.consumerHousing?.initialClaims?.value ?? "--";
+
+  const reverseRepo =
+    dashboardData?.liquidity?.reverseRepo?.value ?? "--";
+
+  const treasuryGeneralAccount =
+    dashboardData?.liquidity?.treasuryGeneralAccount?.value ?? "--";
+
+  const strongestBullish =
+    dashboardData?.gold?.topBullishDrivers?.[0];
+
+  const strongestBearish =
+    dashboardData?.gold?.topBearishDrivers?.[0];
+
   const movementClass =
     goldChange > 0
       ? "movement-up"
@@ -37,11 +79,15 @@ function HomePage({
         ? "movement-down"
         : "movement-flat";
 
-  const strongestBullish =
-    dashboardData?.gold?.topBullishDrivers?.[0];
+  const directionalPoints =
+    score
+      ? score.bullishPoints + score.bearishPoints
+      : 0;
 
-  const strongestBearish =
-    dashboardData?.gold?.topBearishDrivers?.[0];
+  const bullishShare =
+    directionalPoints > 0
+      ? (score.bullishPoints / directionalPoints) * 100
+      : 50;
 
   return (
     <>
@@ -50,6 +96,8 @@ function HomePage({
         subtitle="Live gold, macro and risk command centre"
         currentTime={currentTime}
       />
+
+      {/* PRIMARY COMMAND CENTRE */}
 
       <section className="home-command-grid">
         <div className="home-gold-hero">
@@ -73,7 +121,9 @@ function HomePage({
             {goldPrice}
           </div>
 
-          <div className={`home-price-change ${movementClass}`}>
+          <div
+            className={`home-price-change ${movementClass}`}
+          >
             {goldChange >= 0 ? "+" : ""}
             {goldChange.toFixed(2)}
 
@@ -83,33 +133,37 @@ function HomePage({
             </span>
           </div>
 
+          <p className="home-live-caption">
+            Change since previous live update
+          </p>
+
           <div className="home-session-strip">
-            <div>
-              <span>Observed High</span>
-              <strong>
-                {sessionHigh !== null
+            <HomeStat
+              label="Observed High"
+              value={
+                sessionHigh !== null
                   ? sessionHigh.toFixed(2)
-                  : "--"}
-              </strong>
-            </div>
+                  : "--"
+              }
+            />
 
-            <div>
-              <span>Observed Low</span>
-              <strong>
-                {sessionLow !== null
+            <HomeStat
+              label="Observed Low"
+              value={
+                sessionLow !== null
                   ? sessionLow.toFixed(2)
-                  : "--"}
-              </strong>
-            </div>
+                  : "--"
+              }
+            />
 
-            <div>
-              <span>Observed Range</span>
-              <strong>
-                {sessionRange !== null
+            <HomeStat
+              label="Observed Range"
+              value={
+                sessionRange !== null
                   ? sessionRange.toFixed(2)
-                  : "--"}
-              </strong>
-            </div>
+                  : "--"
+              }
+            />
           </div>
         </div>
 
@@ -120,7 +174,9 @@ function HomePage({
                 Gold Score
               </span>
 
-              <h2>{formatSignedScore(goldScore)}</h2>
+              <h2>
+                {formatSignedScore(goldScore)}
+              </h2>
             </div>
 
             <span className={getBiasClass(bias)}>
@@ -131,40 +187,110 @@ function HomePage({
           <p>{goldSummary}</p>
 
           <div className="home-score-stats">
-            <div>
-              <span>Confidence</span>
-              <strong>
-                {confidence === "--"
+            <HomeStat
+              label="Confidence"
+              value={
+                confidence === "--"
                   ? "--"
-                  : `${confidence}%`}
-              </strong>
-            </div>
+                  : `${confidence}%`
+              }
+            />
 
-            <div>
-              <span>Lean</span>
-              <strong>{lean}</strong>
-            </div>
+            <HomeStat
+              label="Lean"
+              value={lean}
+            />
 
-            <div>
-              <span>Bullish</span>
-              <strong className="positive-score">
-                {score
+            <HomeStat
+              label="Bullish"
+              value={
+                score
                   ? `+${score.bullishPoints}`
+                  : "--"
+              }
+              className="positive-score"
+            />
+
+            <HomeStat
+              label="Bearish"
+              value={
+                score
+                  ? `-${score.bearishPoints}`
+                  : "--"
+              }
+              className="negative-score"
+            />
+          </div>
+
+          <div className="home-score-balance">
+            <div className="home-balance-header">
+              <span>Driver Balance</span>
+
+              <strong>
+                {score
+                  ? `${score.bullishPoints} vs ${score.bearishPoints}`
                   : "--"}
               </strong>
             </div>
 
-            <div>
-              <span>Bearish</span>
-              <strong className="negative-score">
-                {score
-                  ? `-${score.bearishPoints}`
-                  : "--"}
-              </strong>
+            <div className="home-balance-track">
+              <div
+                className="home-balance-bullish"
+                style={{
+                  width: `${bullishShare}%`,
+                }}
+              />
+            </div>
+
+            <div className="home-balance-labels">
+              <span className="positive-score">
+                Bullish
+              </span>
+
+              <span className="negative-score">
+                Bearish
+              </span>
             </div>
           </div>
         </div>
       </section>
+
+      {/* LIVE MARKET TAPE */}
+
+      <section className="home-market-tape">
+        <TapeItem
+          label="2Y Treasury"
+          value={twoYear}
+        />
+
+        <TapeItem
+          label="10Y Treasury"
+          value={tenYearYield}
+        />
+
+        <TapeItem
+          label="10Y Real Yield"
+          value={realYield}
+          featured
+        />
+
+        <TapeItem
+          label="Broad USD"
+          value={dollarIndex}
+        />
+
+        <TapeItem
+          label="VIX"
+          value={vix}
+        />
+
+        <TapeItem
+          label="HY Spread"
+          value={highYieldSpread}
+        />
+      </section>
+
+      {/* MACRO REGIME */}
 
       <section className="home-regime-panel">
         <div className="home-regime-heading">
@@ -207,6 +333,81 @@ function HomePage({
           />
         </div>
       </section>
+
+      {/* THREE MACRO WATCH PANELS */}
+
+      <section className="home-watch-grid">
+        <WatchPanel
+          label="Rates"
+          title="Rates Watch"
+          items={[
+            {
+              label: "Fed Funds",
+              value: fedFunds,
+            },
+            {
+              label: "2Y Treasury",
+              value: twoYear,
+            },
+            {
+              label: "10Y Treasury",
+              value: tenYearYield,
+            },
+            {
+              label: "Yield Curve",
+              value: yieldCurve,
+            },
+          ]}
+        />
+
+        <WatchPanel
+          label="Inflation"
+          title="Inflation Watch"
+          items={[
+            {
+              label: "5Y Breakeven",
+              value: fiveYearBreakeven,
+            },
+            {
+              label: "10Y Breakeven",
+              value: inflation,
+            },
+            {
+              label: "Core PCE",
+              value: corePce,
+            },
+            {
+              label: "PPI",
+              value: ppi,
+            },
+          ]}
+        />
+
+        <WatchPanel
+          label="Risk"
+          title="Risk Watch"
+          items={[
+            {
+              label: "VIX",
+              value: vix,
+            },
+            {
+              label: "HY Spread",
+              value: highYieldSpread,
+            },
+            {
+              label: "Financial Stress",
+              value: financialStress,
+            },
+            {
+              label: "Broad USD",
+              value: dollarIndex,
+            },
+          ]}
+        />
+      </section>
+
+      {/* MACRO PULSE */}
 
       <DashboardSection
         label="Macro Pulse"
@@ -263,6 +464,80 @@ function HomePage({
         </div>
       </DashboardSection>
 
+      {/* LABOUR + LIQUIDITY */}
+
+      <section className="home-secondary-grid">
+        <div className="home-secondary-panel">
+          <div className="home-panel-heading">
+            <div>
+              <span className="section-label">
+                Labour
+              </span>
+
+              <h2>Employment Pulse</h2>
+            </div>
+          </div>
+
+          <div className="home-secondary-stats">
+            <HomeStat
+              label="Unemployment"
+              value={unemployment}
+            />
+
+            <HomeStat
+              label="Nonfarm Payrolls"
+              value={nonfarmPayrolls}
+            />
+
+            <HomeStat
+              label="ADP Employment"
+              value={adpEmployment}
+            />
+
+            <HomeStat
+              label="Initial Claims"
+              value={initialClaims}
+            />
+          </div>
+        </div>
+
+        <div className="home-secondary-panel">
+          <div className="home-panel-heading">
+            <div>
+              <span className="section-label">
+                Liquidity
+              </span>
+
+              <h2>System Liquidity</h2>
+            </div>
+          </div>
+
+          <div className="home-secondary-stats">
+            <HomeStat
+              label="M2"
+              value={m2}
+            />
+
+            <HomeStat
+              label="Reverse Repo"
+              value={reverseRepo}
+            />
+
+            <HomeStat
+              label="Treasury Account"
+              value={treasuryGeneralAccount}
+            />
+
+            <HomeStat
+              label="Dollar"
+              value={dollarIndex}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* STRONGEST FORCES */}
+
       <section className="home-force-grid">
         <div className="home-force-card bullish-force">
           <span className="section-label">
@@ -270,8 +545,9 @@ function HomePage({
           </span>
 
           <h3>
-            {strongestBullish?.indicator ??
-              "Waiting for signal"}
+            {formatDriverName(
+              strongestBullish?.indicator
+            )}
           </h3>
 
           <strong className="positive-score">
@@ -292,8 +568,9 @@ function HomePage({
           </span>
 
           <h3>
-            {strongestBearish?.indicator ??
-              "Waiting for signal"}
+            {formatDriverName(
+              strongestBearish?.indicator
+            )}
           </h3>
 
           <strong className="negative-score">
@@ -325,6 +602,8 @@ function HomePage({
         </div>
       </section>
 
+      {/* TOP DRIVERS */}
+
       <section className="drivers-section">
         <DriverList
           title="Top Bullish Drivers"
@@ -344,6 +623,40 @@ function HomePage({
   );
 }
 
+function HomeStat({
+  label,
+  value,
+  className = "",
+}) {
+  return (
+    <div className="home-stat">
+      <span>{label}</span>
+      <strong className={className}>
+        {value}
+      </strong>
+    </div>
+  );
+}
+
+function TapeItem({
+  label,
+  value,
+  featured = false,
+}) {
+  return (
+    <div
+      className={
+        featured
+          ? "home-tape-item home-tape-featured"
+          : "home-tape-item"
+      }
+    >
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 function RegimeItem({
   label,
   value,
@@ -358,6 +671,34 @@ function RegimeItem({
   );
 }
 
+function WatchPanel({
+  label,
+  title,
+  items,
+}) {
+  return (
+    <div className="home-watch-panel">
+      <span className="section-label">
+        {label}
+      </span>
+
+      <h3>{title}</h3>
+
+      <div className="home-watch-list">
+        {items.map((item) => (
+          <div
+            className="home-watch-row"
+            key={item.label}
+          >
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function formatSignedScore(value) {
   if (
     value === "--" ||
@@ -367,7 +708,9 @@ function formatSignedScore(value) {
     return "--";
   }
 
-  return value > 0 ? `+${value}` : `${value}`;
+  return value > 0
+    ? `+${value}`
+    : `${value}`;
 }
 
 function getBiasClass(bias) {
@@ -382,14 +725,49 @@ function getBiasClass(bias) {
   return "home-bias neutral-score";
 }
 
+function formatDriverName(name) {
+  if (!name) {
+    return "Waiting for signal";
+  }
+
+  const labels = {
+    "10Y real yield": "10Y Real Yield",
+    "US dollar": "US Dollar",
+    "10Y inflation expectations":
+      "10Y Inflation Expectations",
+    "Core PCE inflation":
+      "Core PCE Inflation",
+    "Producer prices":
+      "Producer Prices",
+    "Financial stress":
+      "Financial Stress",
+    "Market volatility":
+      "Market Volatility",
+    "High-yield spread":
+      "High-Yield Spread",
+    "ADP employment":
+      "ADP Employment",
+    "NFP hiring momentum":
+      "Nonfarm Payrolls",
+  };
+
+  return labels[name] || name;
+}
+
 function buildTerminalInsight(
   bias,
   bullish,
   bearish
 ) {
+  const bullishName =
+    formatDriverName(bullish?.indicator);
+
+  const bearishName =
+    formatDriverName(bearish?.indicator);
+
   if (bias === "Neutral") {
     if (bullish && bearish) {
-      return `${bullish.indicator} is supporting gold while ${bearish.indicator} is applying opposing pressure. The model currently sees balanced macro forces.`;
+      return `${bullishName} is supporting gold while ${bearishName} is applying opposing pressure. The model currently sees balanced macro forces.`;
     }
 
     return "The macro model currently sees balanced forces with no dominant directional advantage.";
@@ -397,13 +775,13 @@ function buildTerminalInsight(
 
   if (bias === "Bullish") {
     return bullish
-      ? `${bullish.indicator} is currently the strongest positive force supporting the bullish gold regime.`
+      ? `${bullishName} is currently the strongest positive force supporting the bullish gold regime.`
       : "The Gold Score model currently identifies a bullish macro regime.";
   }
 
   if (bias === "Bearish") {
     return bearish
-      ? `${bearish.indicator} is currently the strongest negative force reinforcing the bearish gold regime.`
+      ? `${bearishName} is currently the strongest negative force reinforcing the bearish gold regime.`
       : "The Gold Score model currently identifies a bearish macro regime.";
   }
 
