@@ -34,7 +34,9 @@ function HomePage({
     dashboardData?.rates?.twoYear?.value ?? "--";
 
   const yieldCurve =
-    dashboardData?.rates?.yieldCurveSpread?.value ?? "--";
+  typeof dashboardData?.rates?.yieldCurveSpread === "number"
+    ? dashboardData.rates.yieldCurveSpread.toFixed(2)
+    : "--";
 
   const fiveYearBreakeven =
     dashboardData?.inflation?.fiveYearBreakeven?.value ?? "--";
@@ -96,6 +98,24 @@ function HomePage({
         subtitle="Live gold, macro and risk command centre"
         currentTime={currentTime}
       />
+
+      <section className="home-intro-panel">
+        <span className="section-label">
+          What is Gold Terminal?
+        </span>
+
+        <h2>
+          A macro dashboard for understanding gold.
+        </h2>
+
+        <p>
+          Gold Terminal tracks the forces that can move gold, including
+          real yields, dollar strength, inflation expectations, market
+          stress, labour data, and liquidity conditions. The Gold Score
+          turns those signals into a simple view of whether the current
+          macro environment is more supportive or more restrictive for gold.
+        </p>
+      </section>
 
       {/* PRIMARY COMMAND CENTRE */}
 
@@ -535,25 +555,25 @@ function HomePage({
           </div>
         </div>
       </section>
-<section className="home-geopolitical-panel">
-  <div>
-    <span className="section-label">
-      Geopolitical Risk
-    </span>
+      <section className="home-geopolitical-panel">
+        <div>
+          <span className="section-label">
+            Geopolitical Risk
+          </span>
 
-    <h2>Coming Soon</h2>
+          <h2>Coming Soon</h2>
 
-    <p>
-      Future feed will track gold-relevant geopolitical risk:
-      war risk, sanctions, oil shocks, central-bank tension,
-      and major global instability headlines.
-    </p>
-  </div>
+          <p>
+            Future feed will track gold-relevant geopolitical risk:
+            war risk, sanctions, oil shocks, central-bank tension,
+            and major global instability headlines.
+          </p>
+        </div>
 
-  <span className="geo-status-badge">
-    Not Connected Yet
-  </span>
-</section>
+        <span className="geo-status-badge">
+          Not Connected Yet
+        </span>
+      </section>
       {/* STRONGEST FORCES */}
 
       <section className="home-force-grid">

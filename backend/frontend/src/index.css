@@ -2181,3 +2181,25 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* HOME INTRO PANEL */
+
+.home-intro-panel {
+  margin-top: 28px;
+  padding: 26px;
+  background: #141414;
+  border: 1px solid #2a2a2a;
+  border-radius: 16px;
+}
+
+.home-intro-panel h2 {
+  margin: 8px 0 12px;
+  font-size: 24px;
+}
+
+.home-intro-panel p {
+  max-width: 980px;
+  margin: 0;
+  color: #aaa;
+  line-height: 1.6;
+}
