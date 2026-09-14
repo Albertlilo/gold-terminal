@@ -2203,3 +2203,131 @@ textarea {
   color: #aaa;
   line-height: 1.6;
 }
+
+/* GOLD SCORE FINAL POLISH */
+
+.gold-score-dashboard {
+  margin-top: 32px;
+}
+
+.gold-summary-grid {
+  gap: 20px;
+}
+
+.score-summary-card,
+.score-table-panel,
+.score-analysis-panel,
+.key-insight-panel,
+.about-score-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent),
+    #141414;
+  border-color: #2f2a1a;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+}
+
+.primary-score-card {
+  border-color: rgba(212, 175, 55, 0.55);
+  background:
+    radial-gradient(circle at top right, rgba(212, 175, 55, 0.14), transparent 35%),
+    #141414;
+}
+
+.total-score-value {
+  font-size: 58px;
+  letter-spacing: -2px;
+}
+
+.score-summary-card:hover,
+.score-table-panel:hover,
+.score-analysis-panel:hover,
+.key-insight-panel:hover {
+  border-color: rgba(212, 175, 55, 0.38);
+}
+
+.summary-symbol {
+  font-size: 52px;
+  opacity: 0.28;
+}
+
+.gold-score-main-grid {
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.score-panel-heading h2 {
+  font-size: 22px;
+}
+
+.driver-count,
+.coming-soon-badge {
+  color: #d4af37;
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  border-radius: 999px;
+}
+
+.driver-count {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.polished-driver-row {
+  padding: 17px 0;
+}
+
+.polished-driver-row:hover {
+  background: rgba(212, 175, 55, 0.035);
+}
+
+.score-driver-name span {
+  font-weight: 600;
+}
+
+.impact {
+  font-weight: 700;
+}
+
+.score-scale {
+  height: 18px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.score-marker span {
+  box-shadow: 0 8px 20px rgba(212, 175, 55, 0.22);
+}
+
+.contribution-ring,
+.confidence-ring {
+  box-shadow: 0 0 35px rgba(112, 214, 156, 0.08);
+}
+
+.key-insight-panel {
+  border-color: rgba(212, 175, 55, 0.35);
+}
+
+.insight-icon {
+  font-size: 28px;
+}
+
+@media (max-width: 700px) {
+  .total-score-value {
+    font-size: 46px;
+  }
+
+  .score-panel-heading h2 {
+    font-size: 19px;
+  }
+
+  .summary-symbol {
+    font-size: 42px;
+  }
+
+  .score-summary-card,
+  .score-table-panel,
+  .score-analysis-panel,
+  .key-insight-panel,
+  .about-score-panel {
+    box-shadow: none;
+  }
+}
