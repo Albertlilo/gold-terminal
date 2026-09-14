@@ -1,7 +1,10 @@
 function Sidebar({ activePage, setActivePage }) {
   return (
     <aside className="sidebar">
-      <h2>Gold Terminal</h2>
+      <div className="sidebar-brand">
+        <h2>Gold Terminal</h2>
+        <span>Free Educational Dashboard</span>
+      </div>
 
       <nav>
         <p
@@ -39,6 +42,10 @@ function Sidebar({ activePage, setActivePage }) {
           Markets
         </p>
       </nav>
+      <div className="sidebar-footer">
+        <span>Built by Albert</span>
+        <small>Macro signals for gold education</small>
+      </div>
     </aside>
   );
 }
