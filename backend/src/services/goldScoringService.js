@@ -22,6 +22,11 @@ const scoringRules = {
     weight: 3,
     label: "10Y real yield"
   },
+  twoYearYield: {
+    bullishWhen: "down",
+    weight: 2,
+    label: "2Y Treasury yield"
+  },
   dollar: {
     bullishWhen: "down",
     weight: 3,
@@ -70,65 +75,64 @@ const scoringRules = {
 };
 
 const calculateGoldScore = ({
-  realYieldChange,
-  dollarChange,
-  inflationExpectationChange,
-  financialStressChange,
-  vixChange,
-  highYieldSpreadChange,
-  adpMomentumChange,
-  nfpMomentumChange,
-  corePceChange,
-  ppiChange
+  realYield,
+  dollar,
+  inflationExpectations,
+  financialStress,
+  vix,
+  highYieldSpread,
+  adpEmployment,
+  nonfarmPayrolls,
+  corePce,
+  ppi
 }) => {
-  
-const indicatorChanges = {
-  realYield: realYieldChange,
-  dollar: dollarChange,
-  inflationExpectations: inflationExpectationChange,
-  corePce: corePceChange,
-  ppi: ppiChange,
-  financialStress: financialStressChange,
-  vix: vixChange,
-  highYieldSpread: highYieldSpreadChange,
-  adpEmployment: adpMomentumChange,
-  nonfarmPayrolls: nfpMomentumChange
-};
+  const indicatorChanges = {
+    realYield: realYield?.change ?? 0,
+    dollar: dollar?.change ?? 0,
+    inflationExpectations: inflationExpectations?.change ?? 0,
+    corePce: corePce?.change ?? 0,
+    ppi: ppi?.change ?? 0,
+    financialStress: financialStress?.change ?? 0,
+    vix: vix?.change ?? 0,
+    highYieldSpread: highYieldSpread?.change ?? 0,
+    adpEmployment: adpEmployment?.change ?? 0,
+    nonfarmPayrolls: nonfarmPayrolls?.change ?? 0
+  };
 
-const scores = Object.fromEntries(
-  Object.entries(scoringRules).map(([indicator, rule]) => [
-    indicator,
-    scoreChange(
-      indicatorChanges[indicator],
-      rule.bullishWhen,
-      rule.weight
-    )
-  ])
-);
+  const scores = Object.fromEntries(
+    Object.entries(scoringRules).map(([indicator, rule]) => [
+      indicator,
+      scoreChange(
+        indicatorChanges[indicator],
+        rule.bullishWhen,
+        rule.weight
+      )
+    ])
+  );
 
   const driverLabels = {
-  realYield: "10Y real yield",
-  dollar: "US dollar",
-  inflationExpectations: "10Y inflation expectations",
-  corePce: "Core PCE inflation",
-  ppi: "Producer prices",
-  financialStress: "Financial stress",
-  vix: "Market volatility",
-  highYieldSpread: "High-yield credit spread",
-  adpEmployment: "ADP hiring momentum",
-  nonfarmPayrolls: "NFP hiring momentum"
-};
+    realYield: "10Y real yield",
+    dollar: "US dollar",
+    inflationExpectations: "10Y inflation expectations",
+    corePce: "Core PCE inflation",
+    ppi: "Producer prices",
+    financialStress: "Financial stress",
+    vix: "Market volatility",
+    highYieldSpread: "High-yield credit spread",
+    adpEmployment: "ADP hiring momentum",
+    nonfarmPayrolls: "NFP hiring momentum"
+  };
 
   const drivers = Object.entries(scores)
-  .filter(([, score]) => score !== 0)
-  .map(([indicator, score]) => ({
-    indicator: scoringRules[indicator].label,
-    impact: score > 0 ? "Bullish" : "Bearish",
-    points: score
-  }))
-  .sort(
-    (first, second) =>
-      Math.abs(second.points) - Math.abs(first.points));
+    .filter(([, score]) => score !== 0)
+    .map(([indicator, score]) => ({
+      indicator: scoringRules[indicator].label,
+      impact: score > 0 ? "Bullish" : "Bearish",
+      points: score
+    }))
+    .sort(
+      (first, second) =>
+        Math.abs(second.points) - Math.abs(first.points));
 
   const totalScore = Object.values(scores).reduce(
     (total, score) => total + score,
@@ -136,40 +140,64 @@ const scores = Object.fromEntries(
   );
 
   const bullishPoints = Object.values(scores)
-  .filter((score) => score > 0)
-  .reduce((total, score) => total + score, 0);
+    .filter((score) => score > 0)
+    .reduce((total, score) => total + score, 0);
 
-const bearishPoints = Math.abs(
-  Object.values(scores)
-    .filter((score) => score < 0)
-    .reduce((total, score) => total + score, 0)
-);
+  const bearishPoints = Math.abs(
+    Object.values(scores)
+      .filter((score) => score < 0)
+      .reduce((total, score) => total + score, 0)
+  );
+
+  const maxScore = Object.values(scoringRules).reduce(
+    (total, rule) => total + rule.weight,
+    0
+  );
+  const activePoints = bullishPoints + bearishPoints;
+
+  const directionalConfidence = Math.round(
+    (Math.abs(totalScore) / maxScore) * 100
+  );
+
+  const activityLevel = Math.min(
+    100,
+    Math.round((activePoints / maxScore) * 100)
+  );
+
+  const isHighConflict =
+    Math.abs(totalScore) <= 2 && activePoints >= 12;
 
   const bias =
-    totalScore >= 5 ? "Bullish" :
-    totalScore <= -5 ? "Bearish" :
-    "Neutral";
+    isHighConflict ? "High Conflict" :
+      totalScore >= 5 ? "Bullish" :
+        totalScore <= -5 ? "Bearish" :
+          "Neutral";
 
   const lean =
-  totalScore >= 3 ? "Bullish Lean" :
-  totalScore <= -3 ? "Bearish Lean" :
-  "No Clear Lean";
-  const maxScore = 15;
-  
-  const confidence = Math.round(
-  (Math.abs(totalScore) / maxScore) * 100
-);
+    isHighConflict ? "Balanced Battle" :
+      totalScore >= 3 ? "Bullish Lean" :
+        totalScore <= -3 ? "Bearish Lean" :
+          "No Clear Lean";
 
-return {
-  totalScore,
-  bullishPoints,
-  bearishPoints,
-  bias,
-  lean,
-  confidence,
-  scores,
-  drivers
-};
+  const confidence = isHighConflict
+    ? activityLevel
+    : directionalConfidence;
+
+  return {
+    totalScore,
+    bullishPoints,
+    bearishPoints,
+    maxScore,
+    bias,
+    lean,
+    confidence,
+    directionalConfidence,
+    activityLevel,
+    activePoints,
+    isHighConflict,
+    scores,
+    drivers
+  };
 };
 
 module.exports = {

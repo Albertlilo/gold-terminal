@@ -11,7 +11,7 @@ function GoldScorePanel({ gold }) {
 
   const scoreEntries = Object.entries(score.scores || {});
 
-  const maxScore = 15;
+  const maxScore = score.maxScore ?? 15;
 
   const scorePosition = Math.max(
     0,
@@ -235,10 +235,10 @@ function GoldScorePanel({ gold }) {
               </div>
 
               <div className="score-scale-numbers">
-                <span>-15</span>
-                <span>0</span>
-                <span>+15</span>
-              </div>
+  <span>-{maxScore}</span>
+  <span>0</span>
+  <span>+{maxScore}</span>
+</div>
 
               <div className="score-scale-labels">
                 <span className="negative-score">
@@ -408,6 +408,7 @@ function buildInsight(
 function formatIndicatorName(name) {
   const labels = {
     realYield: "10Y Real Yield",
+    twoYearYield: "2Y Treasury Yield",
     dollar: "US Dollar",
     inflationExpectations:
       "10Y Inflation Expectations",

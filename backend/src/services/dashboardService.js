@@ -71,6 +71,7 @@ const getDashboardData = async () => {
 
 const goldScore = calculateGoldScore({
   realYield: tenYearRealYield,
+  twoYearYield: twoYear,
   dollar: dollarIndex,
   inflationExpectations: tenYearBreakeven,
   financialStress,
