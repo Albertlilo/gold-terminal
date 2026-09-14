@@ -214,8 +214,8 @@ function App() {
         )}
 
         {activePage === "indicators" && (
-  <IndicatorsPage currentTime={currentTime} />
-)}
+          <IndicatorsPage currentTime={currentTime} />
+        )}
       </main>
     </div>
   );
