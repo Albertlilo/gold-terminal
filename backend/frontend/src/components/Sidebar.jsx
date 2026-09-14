@@ -22,6 +22,13 @@ function Sidebar({ activePage, setActivePage }) {
         </p>
 
         <p
+          className={activePage === "technicals" ? "active-nav" : ""}
+          onClick={() => setActivePage("technicals")}
+        >
+          Technicals
+        </p>
+
+        <p
           className={activePage === "indicators" ? "active-nav" : ""}
           onClick={() => setActivePage("indicators")}
         >

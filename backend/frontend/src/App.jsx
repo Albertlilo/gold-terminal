@@ -1,3 +1,4 @@
+import TechnicalsPage from "./pages/TechnicalsPage";
 import IndicatorsPage from "./pages/IndicatorsPage";
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
@@ -212,6 +213,18 @@ function App() {
             sessionRange={sessionRange}
           />
         )}
+
+        {activePage === "technicals" && (
+  <TechnicalsPage
+    dashboardData={dashboardData}
+    currentTime={currentTime}
+    goldHistory={goldHistory}
+    goldPrice={goldPrice}
+    goldMovement={goldMovement}
+    goldChange={goldChange}
+    goldChangePercent={goldChangePercent}
+  />
+)}
 
         {activePage === "indicators" && (
           <IndicatorsPage currentTime={currentTime} />
