@@ -3,7 +3,7 @@ const scoreChange = (
   bullishWhen = "up",
   weight = 1
 ) => {
-  if (change === 0) {
+  if (!Number.isFinite(change) || change === 0) {
     return 0;
   }
 
@@ -76,6 +76,7 @@ const scoringRules = {
 
 const calculateGoldScore = ({
   realYield,
+  twoYearYield,
   dollar,
   inflationExpectations,
   financialStress,
@@ -88,6 +89,7 @@ const calculateGoldScore = ({
 }) => {
   const indicatorChanges = {
     realYield: realYield?.change ?? 0,
+    twoYearYield: twoYearYield?.change ?? 0,
     dollar: dollar?.change ?? 0,
     inflationExpectations: inflationExpectations?.change ?? 0,
     corePce: corePce?.change ?? 0,
@@ -179,9 +181,8 @@ const calculateGoldScore = ({
         totalScore <= -3 ? "Bearish Lean" :
           "No Clear Lean";
 
-  const confidence = isHighConflict
-    ? activityLevel
-    : directionalConfidence;
+  // Activity measures participation; confidence always measures direction.
+  const confidence = directionalConfidence;
 
   return {
     totalScore,

@@ -47,9 +47,9 @@ function GoldScorePage({ dashboardData, currentTime }) {
           />
 
           <ScoreExplainer
-            title="Confidence"
+            title="Directional strength"
             value="Strength of the signal"
-            description="Confidence shows how one-sided the model is. If bullish and bearish forces are balanced, confidence will be low even if many indicators are active."
+            description="Directional strength is the absolute net score divided by the maximum score. It stays low when bullish and bearish forces offset each other, even if every indicator is active. It is not a probability of trade success."
           />
 
           <ScoreExplainer

@@ -144,7 +144,7 @@ function MarketsPage({
 
           <div className="markets-model-grid">
             <MarketStat
-              label="Confidence"
+              label="Directional strength"
               value={
                 score
                   ? `${score.confidence}%`

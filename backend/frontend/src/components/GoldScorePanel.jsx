@@ -68,6 +68,7 @@ function GoldScorePanel({ gold }) {
 
             <div
               className="confidence-ring"
+              title="Directional strength: the absolute net score as a percentage of the maximum score. Not a probability of trade success."
               style={{
                 background: `conic-gradient(
                   #70d69c ${confidenceDegrees}deg,
@@ -77,7 +78,7 @@ function GoldScorePanel({ gold }) {
             >
               <div className="confidence-ring-inner">
                 <strong>{score.confidence}%</strong>
-                <span>Confidence</span>
+                <span>Direction</span>
               </div>
             </div>
           </div>

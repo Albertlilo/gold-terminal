@@ -208,7 +208,7 @@ function HomePage({
 
           <div className="home-score-stats">
             <HomeStat
-              label="Confidence"
+              label="Directional strength"
               value={
                 confidence === "--"
                   ? "--"
