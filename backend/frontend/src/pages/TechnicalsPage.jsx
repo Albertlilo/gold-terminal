@@ -1,6 +1,6 @@
 import { useState } from "react";
 import PageHeader from "../components/PageHeader";
-import GoldPriceChart from "../components/GoldPriceChart";
+import GoldCandleChart from "../components/GoldCandleChart";
 
 const NOISE_THRESHOLD_PERCENT = 0.1;
 const MIN_READINGS = 3;
@@ -76,7 +76,7 @@ function TechnicalsPage({
 
       <p className="technical-window-note">
         Signal compares the first and latest of {validHistory.length} valid readings
-        in the rolling chart history (up to 20 readings), not the latest tick or a full session.
+        in the live signal window (up to 20 readings), separate from the saved candle chart.
         At least {MIN_READINGS} valid readings are required. The chart rescales to its price range,
         so small moves can still look steep.
       </p>
@@ -94,7 +94,7 @@ function TechnicalsPage({
           they appear after {MIN_READINGS} valid readings.
         </p>
       )}
-      <GoldPriceChart history={validHistory} watchLevels={watchLevels} />
+      <GoldCandleChart watchLevels={watchLevels} />
 
       <section className="technical-rules-panel">
         <span className="section-label">Trading Logic</span>

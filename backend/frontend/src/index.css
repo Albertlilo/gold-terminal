@@ -2543,3 +2543,18 @@ textarea {
   line-height: 1.6;
 }
 
+
+/* SAVED GOLD CANDLES */
+.candle-header { flex-wrap: wrap; gap: 16px; }
+.candle-timeframe { display: flex; align-items: center; gap: 10px; color: #aaa; font-size: 13px; }
+.candle-timeframe select, .candle-toolbar button { background: #1b1b1b; color: #ddd; border: 1px solid #414141; border-radius: 7px; padding: 8px 10px; font: inherit; }
+.candle-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; font-size: 12px; }
+.candle-toolbar button { cursor: pointer; }
+.candle-toolbar button:hover:not(:disabled) { border-color: #d4af37; color: #d4af37; }
+.candle-toolbar button:disabled { opacity: .4; cursor: default; }
+.candle-surface { width: 100%; min-width: 0; touch-action: pan-y; cursor: crosshair; }
+.candle-surface svg { display: block; touch-action: none; user-select: none; }
+.candle-surface:focus-visible, .candle-toolbar button:focus-visible, .candle-timeframe select:focus-visible { outline: 2px solid #d4af37; outline-offset: 3px; }
+.candle-ohlc { display: flex; flex-wrap: wrap; gap: 8px 14px; min-height: 38px; color: #bbb; font-size: 12px; font-variant-numeric: tabular-nums; }
+.candle-status, .candle-hint { color: #aaa; font-size: 12px; line-height: 1.5; margin: 10px 0 0; }
+.candle-levels { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 12px; margin-top: 12px; }

@@ -27,6 +27,7 @@ app.get("/", (req,res) => {
 app.use("/api/users", usersRouters);
 
 app.use("/api/fred", fredRoutes);
+app.use("/api/market", require("./routes/marketRoutes"));
 
 app.listen(process.env.PORT, () => {
     console.log(`Server is running on port ${process.env.PORT}`);
