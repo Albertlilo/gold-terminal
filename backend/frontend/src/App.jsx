@@ -15,6 +15,9 @@ const DASHBOARD_REFRESH_MS = 30000;
 
 function App() {
   const [dashboardData, setDashboardData] = useState(null);
+  const [dashboardError, setDashboardError] = useState("");
+  const [dashboardBusy, setDashboardBusy] = useState(false);
+  const retryDashboard = useRef(() => {});
   const [activePage, setActivePage] = useState("home");
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -29,10 +32,18 @@ function App() {
   const [sessionLow, setSessionLow] = useState(null);
 
   useEffect(() => {
+    let disposed = false;
+    let inFlight = false;
+    let controller;
     const fetchDashboard = async () => {
+      if (inFlight || disposed) return;
+      inFlight = true;
+      setDashboardBusy(true);
+      controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 65000);
       try {
         const response = await fetch(
-          `${API_BASE_URL}/api/fred/dashboard`
+          `${API_BASE_URL}/api/fred/dashboard`, { signal: controller.signal }
         );
 
         if (!response.ok) {
@@ -42,6 +53,8 @@ function App() {
         }
 
         const data = await response.json();
+        if (disposed) return;
+        setDashboardError("");
         const newGoldPrice = data?.market?.xauusd?.price;
 
         if (typeof newGoldPrice === "number") {
@@ -89,18 +102,30 @@ function App() {
 
         setDashboardData(data);
       } catch (error) {
-        console.error("Dashboard fetch failed:", error);
+        if (!disposed) setDashboardError(error.name === "AbortError"
+          ? "The dashboard request timed out. The server may be waking up."
+          : "Dashboard data is unavailable. The server or its data provider could not complete the request.");
+      } finally {
+        clearTimeout(timeout);
+        inFlight = false;
+        if (!disposed) setDashboardBusy(false);
       }
     };
 
-    fetchDashboard();
+    retryDashboard.current = fetchDashboard;
+    const initialRequest = setTimeout(fetchDashboard, 0);
 
     const dashboardInterval = setInterval(
       fetchDashboard,
       DASHBOARD_REFRESH_MS
     );
 
-    return () => clearInterval(dashboardInterval);
+    return () => {
+      disposed = true;
+      clearTimeout(initialRequest);
+      clearInterval(dashboardInterval);
+      controller?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -114,13 +139,13 @@ function App() {
   const goldPrice =
     typeof dashboardData?.market?.xauusd?.price === "number"
       ? dashboardData.market.xauusd.price.toFixed(2)
-      : "Loading...";
+      : dashboardError ? "Unavailable" : "Loading...";
 
   const goldScore =
     dashboardData?.gold?.score?.totalScore ?? "--";
 
   const goldSummary =
-    dashboardData?.gold?.summary ?? "Loading macro signals...";
+    dashboardData?.gold?.summary ?? (dashboardError ? "Macro data unavailable" : "Loading macro signals...");
 
   const realYield =
     dashboardData?.realYields?.tenYearRealYield?.value ?? "--";
@@ -159,6 +184,16 @@ function App() {
       />
 
       <main className="dashboard">
+        {dashboardError && (
+          <section className="technical-window-note" role="alert">
+            <p>{dashboardError} {dashboardData ? "Displayed values are from the last successful update; do not treat them as current signals." : "Saved candles can still be opened under Technicals."}</p>
+            <div className="candle-toolbar">
+              <button disabled={dashboardBusy} onClick={() => retryDashboard.current()}>
+                {dashboardBusy ? "Retrying…" : "Retry dashboard"}
+              </button>
+            </div>
+          </section>
+        )}
         {activePage === "home" && (
           <HomePage
             dashboardData={dashboardData}
