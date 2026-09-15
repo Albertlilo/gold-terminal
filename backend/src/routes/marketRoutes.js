@@ -26,10 +26,16 @@ router.get("/gold/history", async (req, res) => {
     const history = await getHistory(interval, before);
     res.set("Cache-Control", "no-store").json(history);
   } catch (error) {
+    const category = error.code === 18 ? "authentication"
+      : error.code === 13 ? "database_permissions"
+      : error.name === "MongoServerSelectionError" ? "database_connection_timeout"
+      : error.name === "MongoParseError" ? "database_uri_format"
+      : error.code === 50 ? "database_query_timeout" : "history_unavailable";
+    console.error("Candle history request failed:", category);
     // Never expose driver errors, credentials, connection URLs or provider request configs.
     const status = [400, 429, 503].includes(error.status) ? error.status : 503;
     res.status(status).json({ message: error.status ? error.message
-      : "Saved history is unavailable. Check Atlas credentials, network access and storage capacity." });
+      : "Saved history could not be reached on this attempt. Please retry; this does not mean your history was deleted." });
   }
 });
 

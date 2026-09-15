@@ -31,6 +31,8 @@ test('concurrent refreshes share one request and repeated refreshes update the c
   assert.equal(calls, 1); assert.equal(first.saved, true); assert.deepEqual(first, second);
   await history(); assert.equal(calls, 1);
   time += 300001;
+  await history();
+  await new Promise(setImmediate);
   const next = await history();
   assert.equal(calls, 2); assert.equal(next.candles.length, 1); assert.equal(next.candles[0].close, 102);
 });
@@ -38,6 +40,9 @@ test('new service instance loads persisted data when provider is unavailable', a
   const store = memoryStore();
   await createHistoryService({ store, fetchCandles: async () => [candle(100)] })();
   const restarted = createHistoryService({ store, fetchCandles: async () => { throw new Error('quota'); } });
+  const immediate = await restarted();
+  assert.equal(immediate.candles.length, 1);
+  await new Promise(setImmediate);
   const result = await restarted();
   assert.equal(result.candles.length, 1); assert.equal(result.saved, true); assert.match(result.warning, /saved history/);
 });

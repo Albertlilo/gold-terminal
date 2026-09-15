@@ -43,7 +43,7 @@ function createHistoryService({ store, fetchCandles, now = Date.now }) {
     // can be backfilled instead of silently jumping across a gap in stored data.
     const shouldRefresh = true;
     let state = requests.get(key);
-    if (shouldRefresh && (!state || now() - state.startedAt >= REFRESH_MS)) {
+    if (shouldRefresh && (!state || (!state.pending && now() - state.startedAt >= (state.warning ? 15000 : REFRESH_MS)))) {
       if (requests.size >= 40) {
         for (const [oldKey, value] of requests) {
           if (!value.pending) requests.delete(oldKey);
@@ -69,7 +69,9 @@ function createHistoryService({ store, fetchCandles, now = Date.now }) {
       })();
       requests.set(key, state);
     }
-    if (shouldRefresh && state) {
+    // Return saved data immediately; the next request can pick up refreshed data.
+    // Only first-time/empty pages need to wait for the provider.
+    if (!candles.length && state) {
       await state.promise;
       candles = await store.read(interval, before, PAGE_SIZE);
     }
@@ -81,6 +83,7 @@ function createHistoryService({ store, fetchCandles, now = Date.now }) {
     return {
       symbol: SYMBOL, interval, candles, saved: true,
       refreshedAt: state?.refreshedAt ?? null,
+      refreshing: state?.pending ?? false,
       warning: state?.warning ?? null,
       // An empty older page is the definitive end of available history.
       hasMore: candles.length > 0,

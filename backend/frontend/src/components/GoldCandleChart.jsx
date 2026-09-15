@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { candleWindow, mergeCandles } from "../lib/candles";
+import { requestHistory } from "../lib/historyRequest";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://gold-terminal-ufv4.onrender.com";
 const EMPTY_LEVELS = [];
@@ -36,37 +37,68 @@ function CandleView({ interval, watchLevels }) {
   const chartRef = useRef(null);
   const dragRef = useRef(null);
   const olderRequest = useRef(null);
+  const retryRef = useRef(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
     let busy = false;
-    async function refresh() {
-      if (busy || document.hidden) return;
+    let failures = 0;
+    let followups = 0;
+    let retryTimer;
+    async function refresh(manual = false) {
+      if (busy || (!manual && document.hidden)) return;
       busy = true;
+      clearTimeout(retryTimer);
+      if (manual) { failures = 0; followups = 0; }
+      setRefreshing(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/market/gold/history?interval=${interval}`, { signal: controller.signal });
-        const data = await response.json();
-        if (!response.ok || !Array.isArray(data.candles)) throw new Error(data.message || "Could not load candle history.");
+        const data = await requestHistory(
+          API_BASE_URL + "/api/market/gold/history?interval=" + interval,
+          { signal: controller.signal },
+        );
         if (active) {
+          failures = 0;
           setCandles(previous => mergeCandles(previous, data.candles));
-          setStatus(data.warning || (data.candles.length ? "History saved in Atlas. Updates checked every 5 minutes." : "No candles available for this timeframe."));
+          setStatus(data.warning || (data.refreshing
+            ? "Showing saved candles while newer prices refresh in the background."
+            : data.candles.length ? "History saved in Atlas. Updates checked every 5 minutes."
+              : "No candles available for this timeframe."));
+          if (data.refreshing && followups < 10) {
+            followups++;
+            retryTimer = window.setTimeout(() => refresh(), 3000);
+          } else { followups = 0; }
         }
       } catch (error) {
-        if (active && error.name !== "AbortError") setStatus(error.message === "Failed to fetch"
-          ? "History could not be reached. Saved candles will load when the backend is available."
-          : error.message);
-      } finally { busy = false; }
+        if (active && error.name !== "AbortError") {
+          failures++;
+          const willRetry = failures <= 3;
+          setStatus(error.message + (willRetry
+            ? " Retrying automatically in 15 seconds. Any candles already loaded remain visible."
+            : " Use Retry history to try again. Any candles already loaded remain visible."));
+          if (willRetry) retryTimer = window.setTimeout(() => refresh(), 15000);
+        }
+      } finally {
+        busy = false;
+        if (active) setRefreshing(false);
+      }
     }
-    refresh();
-    const timer = window.setInterval(refresh, 300000);
-    document.addEventListener("visibilitychange", refresh);
+    retryRef.current = () => refresh(true);
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    // Schedule initial work after the effect is installed, just like subsequent retries.
+    const initialTimer = window.setTimeout(() => refresh(), 0);
+    const timer = window.setInterval(() => refresh(), 300000);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       active = false;
+      retryRef.current = null;
       controller.abort();
       olderRequest.current?.abort();
+      window.clearTimeout(initialTimer);
+      window.clearTimeout(retryTimer);
       window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [interval]);
 
@@ -89,9 +121,7 @@ function CandleView({ interval, watchLevels }) {
     olderRequest.current = controller;
     setLoadingOlder(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/market/gold/history?interval=${interval}&before=${before}`, { signal: controller.signal });
-      const data = await response.json();
-      if (!response.ok || !Array.isArray(data.candles)) throw new Error(data.message || "Could not load older candles.");
+      const data = await requestHistory(`${API_BASE_URL}/api/market/gold/history?interval=${interval}&before=${before}`, { signal: controller.signal });
       setCandles(previous => mergeCandles(data.candles, previous));
       setHasMore(data.candles.length > 0);
       if (data.candles.length) setEndTime(before);
@@ -141,6 +171,7 @@ function CandleView({ interval, watchLevels }) {
   return (
     <>
       <div className="candle-toolbar" aria-label="Chart controls">
+        <button type="button" onClick={() => retryRef.current?.()} disabled={refreshing}>{refreshing ? "Checking history…" : "Retry history"}</button>
         <button type="button" onClick={loadOlder} disabled={!candles.length || loadingOlder || !hasMore}>{loadingOlder ? "Loading…" : "Load older history"}</button>
         <button type="button" aria-label="Pan to earlier candles" onClick={() => moveBy(-Math.round(count / 2))} disabled={!candles.length}>← Earlier</button>
         <button type="button" aria-label="Pan to later candles" onClick={() => moveBy(Math.round(count / 2))} disabled={endTime === null}>Later →</button>
