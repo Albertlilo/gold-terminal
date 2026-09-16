@@ -1,3 +1,4 @@
+import DashboardDataStatus from "./components/DashboardDataStatus";
 import TechnicalsPage from "./pages/TechnicalsPage";
 import IndicatorsPage from "./pages/IndicatorsPage";
 import { useEffect, useRef, useState } from "react";
@@ -15,6 +16,7 @@ const DASHBOARD_REFRESH_MS = 30000;
 
 function App() {
   const [dashboardData, setDashboardData] = useState(null);
+  const [lastSuccessAt, setLastSuccessAt] = useState(null);
   const [dashboardError, setDashboardError] = useState("");
   const [dashboardBusy, setDashboardBusy] = useState(false);
   const retryDashboard = useRef(() => {});
@@ -54,6 +56,7 @@ function App() {
 
         const data = await response.json();
         if (disposed) return;
+        if (!data?.gold?.score || !data?.market) throw new Error("Incomplete dashboard response");
         setDashboardError("");
         const newGoldPrice = data?.market?.xauusd?.price;
 
@@ -101,6 +104,7 @@ function App() {
         }
 
         setDashboardData(data);
+        setLastSuccessAt(Date.now());
       } catch (error) {
         if (!disposed) setDashboardError(error.name === "AbortError"
           ? "The dashboard request timed out. The server may be waking up."
@@ -184,16 +188,13 @@ function App() {
       />
 
       <main className="dashboard">
-        {dashboardError && (
-          <section className="technical-window-note" role="alert">
-            <p>{dashboardError} {dashboardData ? "Displayed values are from the last successful update; do not treat them as current signals." : "Saved candles can still be opened under Technicals."}</p>
-            <div className="candle-toolbar">
-              <button disabled={dashboardBusy} onClick={() => retryDashboard.current()}>
-                {dashboardBusy ? "Retrying…" : "Retry dashboard"}
-              </button>
-            </div>
-          </section>
-        )}
+        <DashboardDataStatus
+          lastSuccessAt={lastSuccessAt}
+          busy={dashboardBusy}
+          error={dashboardError}
+          now={currentTime.getTime()}
+          onRetry={() => retryDashboard.current()}
+        />
         {activePage === "home" && (
           <HomePage
             dashboardData={dashboardData}
@@ -250,16 +251,16 @@ function App() {
         )}
 
         {activePage === "technicals" && (
-  <TechnicalsPage
-    dashboardData={dashboardData}
-    currentTime={currentTime}
-    goldHistory={goldHistory}
-    goldPrice={goldPrice}
-    goldMovement={goldMovement}
-    goldChange={goldChange}
-    goldChangePercent={goldChangePercent}
-  />
-)}
+          <TechnicalsPage
+            dashboardData={dashboardData}
+            currentTime={currentTime}
+            goldHistory={goldHistory}
+            goldPrice={goldPrice}
+            goldMovement={goldMovement}
+            goldChange={goldChange}
+            goldChangePercent={goldChangePercent}
+          />
+        )}
 
         {activePage === "indicators" && (
           <IndicatorsPage currentTime={currentTime} />

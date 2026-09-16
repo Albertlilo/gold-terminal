@@ -2558,3 +2558,16 @@ textarea {
 .candle-ohlc { display: flex; flex-wrap: wrap; gap: 8px 14px; min-height: 38px; color: #bbb; font-size: 12px; font-variant-numeric: tabular-nums; }
 .candle-status, .candle-hint { color: #aaa; font-size: 12px; line-height: 1.5; margin: 10px 0 0; }
 .candle-levels { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 12px; margin-top: 12px; }
+
+/* Dashboard request status: wraps on narrow screens without hiding errors. */
+.dashboard-data-status { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 16px 18px; margin-bottom: 24px; background: #101010; border: 1px solid #333; border-radius: 13px; }
+.data-status-content { flex: 1 1 260px; min-width: 0; display: grid; gap: 7px; }
+.data-status-content strong { color: #d4af37; font-size: 14px; }
+.data-status-content span { color: #ddd; font-size: 13px; overflow-wrap: anywhere; }
+.data-status-content small { color: #aaa; font-size: 12px; line-height: 1.5; }
+.data-status-content p { color: #ddd; font-size: 13px; line-height: 1.5; margin: 0; }
+.data-status-success strong { color: #70d69c; }
+.data-status-error { border-color: #8f4f4f; }
+.data-status-error strong { color: #f1a4a4; }
+.data-status-warning { border-color: #887133; }
+.dashboard-data-status .candle-toolbar { margin: 0; }

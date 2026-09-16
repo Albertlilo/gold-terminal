@@ -7,7 +7,7 @@ function PageHeader({ title, subtitle, currentTime }) {
       </div>
 
       <div className="status-area">
-        <span className="status-badge">Live</span>
+        <span className="last-updated">Local time</span>
         <span className="last-updated">
           {currentTime.toLocaleTimeString()}
         </span>
