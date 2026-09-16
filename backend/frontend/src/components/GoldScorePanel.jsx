@@ -236,10 +236,10 @@ function GoldScorePanel({ gold }) {
               </div>
 
               <div className="score-scale-numbers">
-  <span>-{maxScore}</span>
-  <span>0</span>
-  <span>+{maxScore}</span>
-</div>
+                <span>-{maxScore}</span>
+                <span>0</span>
+                <span>+{maxScore}</span>
+              </div>
 
               <div className="score-scale-labels">
                 <span className="negative-score">
