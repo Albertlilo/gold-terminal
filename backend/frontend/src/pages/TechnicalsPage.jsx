@@ -32,6 +32,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <span className="session-dot" /> <strong>{session.label}</strong>
         <span>{session.isOpen ? "Scheduled hours · New York time" : "Price readings paused · last available prices shown"}</span>
       </div>
+      {dashboardData?.market?.xauusd?.priceSource === "saved_candle" && <p className="analysis-method">Saved candle reference · not a live quote or an official session close. Candle ended {new Date(dashboardData.market.xauusd.receivedAt).toLocaleString()}. Provider data can include out-of-session timestamps.</p>}
       <section className="terminal-summary" aria-label="Signal summary">
         <article className={`terminal-card summary-card tone-${macroTone}`}><span className="terminal-eyebrow">▥ &nbsp; Macro Bias</span><h2>{macro}</h2><strong className="macro-total">{Number.isFinite(score?.totalScore) ? `${score.totalScore > 0 ? "+" : ""}${score.totalScore}` : "—"}<small> / {score?.maxScore ?? 20}</small></strong>{!macroFresh && <p>Awaiting a current macro update</p>}</article>
         <article className="terminal-card summary-card tone-neutral"><span className="terminal-eyebrow">↗ &nbsp; Technical State</span><h2>{analysis.state}</h2><p>{TIMEFRAMES[interval].label} · completed candles</p><p>{analysis.state === "Between Levels" ? "No confirmation yet" : analysis.stale ? "Delayed candle data" : "Noise filter ±0.10%"}</p></article>

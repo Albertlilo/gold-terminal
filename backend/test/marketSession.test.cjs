@@ -2,6 +2,17 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createMarketSnapshotService}=require('../src/services/marketSnapshotService');
 const {createHistoryService}=require('../src/services/candleHistoryService');
+test('saved weekend candles remain usable as a labelled reference, not a live quote',async()=>{
+  const {savedCandleQuote}=require('../src/services/marketSnapshotService');
+  const now=Date.parse('2026-09-20T20:20:00Z');
+  const rows=[{time:now/1000-600,close:4380.13},{time:now/1000,close:9999},{time:now/1000-900,close:NaN}];
+  const saved=savedCandleQuote(rows,now);
+  assert.equal(saved.price,4380.13);
+  const get=createMarketSnapshotService({now:()=>now,session:()=>({isOpen:false,label:'Weekend closure'}),fetchPrice:()=>{throw Error('No live requests');},readSavedPrice:async()=>saved});
+  const first=(await get()).xauusd;const second=(await get()).xauusd;
+  assert.equal(first.priceSource,'saved_candle');assert.equal(first.price,second.price);assert.equal(first.marketClosed,true);
+  assert.equal(savedCandleQuote([],now),null);
+});
 test('concurrent closed visitors share one saved-price read and all receive it',async()=>{
   let reads=0,resolve;
   const get=createMarketSnapshotService({session:()=>({isOpen:false,label:'Closed'}),fetchPrice:()=>{throw Error('Must not request');},readSavedPrice:()=>{reads++;return new Promise(r=>{resolve=r;});}});

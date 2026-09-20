@@ -1,6 +1,6 @@
 import { getGoldSession } from "../lib/goldSession";
 import { useEffect, useRef, useState } from "react";
-import { candleWindow, mergeCandles } from "../lib/candles";
+import { candleWindow, mergeCandles, candlePriceBounds } from "../lib/candles";
 import { requestHistory } from "../lib/historyRequest";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://gold-terminal-ufv4.onrender.com";
@@ -28,6 +28,7 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, interval: 
 }
 
 function CandleView({ interval, watchLevels, onCandlesChange }) {
+  const [magnify, setMagnify] = useState(false);
   const [candles, setCandles] = useState([]);
   const [status, setStatus] = useState("Loading saved candles…");
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -151,9 +152,7 @@ function CandleView({ interval, watchLevels, onCandlesChange }) {
   const highs = visible.map(candle => candle.high);
   const low = visible.length ? Math.min(...lows) : 0;
   const high = visible.length ? Math.max(...highs) : 1;
-  const padding = (high - low || 1) * 0.12;
-  const min = low - padding;
-  const max = high + padding;
+  const { min, max, quiet } = candlePriceBounds(low, high, magnify);
   const y = price => bottom - ((price - min) / (max - min)) * plotHeight;
   const step = plotWidth / Math.max(1, visible.length);
   const x = index => 8 + (index + 0.5) * step;
@@ -190,6 +189,8 @@ function CandleView({ interval, watchLevels, onCandlesChange }) {
       <div className="candle-ohlc" aria-live="off">
         {selected ? <><span>{stamp(selected.time)} UTC</span><span>O {selected.open.toFixed(2)}</span><span>H {selected.high.toFixed(2)}</span><span>L {selected.low.toFixed(2)}</span><span>C {selected.close.toFixed(2)}</span></> : "Waiting for historical prices…"}
       </div>
+      <label className="watch-toggle"><input type="checkbox" checked={magnify} onChange={event => setMagnify(event.target.checked)} />Magnify small price moves</label>
+      {visible.length > 0 && quiet && <p className="candle-hint">Narrow visible range: ${(high - low).toFixed(2)}. {magnify ? "Small movements are magnified." : "Scale kept at a minimum 0.10% range to avoid exaggerating tiny moves."}</p>}
       <div ref={chartRef} className="candle-surface" tabIndex={0} role="group" aria-label="Gold candlestick chart. Use arrow keys to pan and plus or minus to zoom."
         onKeyDown={event => {
           if (["ArrowLeft", "ArrowRight", "+", "=", "-"].includes(event.key)) event.preventDefault();

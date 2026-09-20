@@ -16,3 +16,11 @@ export function candleWindow(candles, count, endTime) {
     : candles.findLastIndex(candle => candle.time <= endTime) + 1;
   return candles.slice(Math.max(0, end - count), end);
 }
+
+export function candlePriceBounds(low, high, magnify = false) {
+  const middle = (low + high) / 2;
+  const observed = Math.max(0, high - low);
+  const minimum = Math.max(middle * 0.001, 0.01);
+  const span = magnify ? (observed || minimum) * 1.24 : Math.max(observed * 1.24, minimum);
+  return { min: middle - span / 2, max: middle + span / 2, quiet: observed < minimum };
+}
