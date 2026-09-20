@@ -1,3 +1,4 @@
+const { getGoldSession } = require("../services/goldSession");
 const express = require("express");
 const axios = require("axios");
 const store = require("../services/candleStore");
@@ -6,6 +7,7 @@ const router = express.Router();
 
 const getHistory = createHistoryService({
   store,
+  canRefresh: () => getGoldSession().isOpen,
   async fetchCandles(interval, before) {
     if (!process.env.TWELVE_DATA_API_KEY) throw new Error("Data configuration missing");
     const params = {

@@ -2571,3 +2571,52 @@ textarea {
 .data-status-error strong { color: #f1a4a4; }
 .data-status-warning { border-color: #887133; }
 .dashboard-data-status .candle-toolbar { margin: 0; }
+
+/* Macro + Technical Signal terminal */
+.technical-terminal { max-width: 1260px; margin: 0 auto; color: #ededed; }
+.terminal-brand { display:flex; justify-content:space-between; align-items:center; gap:18px; margin:8px 0 28px; }
+.terminal-brand > div:first-child { display:flex; align-items:center; gap:15px; }
+.terminal-brand strong { font-size:30px; letter-spacing:-.7px; }
+.terminal-brand strong span, .gold-bar-icon { color:#e7bf55; }
+.gold-bar-icon { font-size:52px; line-height:1; text-shadow:3px 4px #67501c; transform:rotate(-8deg); }
+.terminal-brand small { display:block; margin-top:5px; letter-spacing:3px; color:#999; font-size:10px; }
+.terminal-symbol { display:grid; gap:6px; text-align:right; color:#999; font-size:12px; }
+.terminal-intro h1 { margin:0 0 10px; font-size:clamp(27px,3vw,44px); line-height:1.12; letter-spacing:-1px; }
+.terminal-intro p { color:#aaa; font-size:17px; margin:0 0 18px; }
+.session-notice { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; font-size:12px; color:#a9b6aa; margin-bottom:20px; }
+.session-notice > span:last-child { color:#999; }
+.session-dot { width:7px; height:7px; border-radius:50%; background:#70d69c; }
+.session-closed { color:#dfc579; }.session-closed .session-dot { background:#dfc579; }
+.terminal-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:20px; }
+.terminal-card, .technical-terminal .candle-panel { background:linear-gradient(125deg,#151515,#101010 65%,#1c190f); border:1px solid #514321; border-radius:17px; padding:24px; margin-bottom:20px; }
+.terminal-summary .summary-card { padding:25px 22px; margin:0; min-width:0; }
+.terminal-eyebrow { display:block; color:#b5b5bb; font-size:12px; letter-spacing:1.8px; text-transform:uppercase; margin-bottom:22px; }
+.summary-card h2 { font-size:clamp(22px,2.4vw,32px); line-height:1.18; margin:0 0 12px; overflow-wrap:anywhere; }
+.summary-card p { color:#aaa; line-height:1.5; font-size:13px; margin:7px 0 0; }
+.tone-down { border-color:#6c3538; }.tone-down h2, .text-down, .tone-down .macro-total { color:#f0787c; }
+.tone-up { border-color:#365c44; }.tone-up h2, .text-up, .tone-up .macro-total { color:#70d69c; }
+.tone-neutral h2, .text-neutral { color:#e7bf55; }
+.summary-card .combined-signal { color:#f3f3f3; font-size:clamp(27px,3vw,40px); }
+.macro-total { font-size:36px; }.macro-total small { font-size:18px; color:#999; font-weight:400; }
+.terminal-panel-title { display:flex; justify-content:space-between; align-items:center; gap:14px; margin-bottom:20px; }
+.terminal-panel-title h2 { font-size:23px; margin:0; }.terminal-panel-title h2 span { color:#e7bf55; margin-right:10px; }
+.terminal-panel-title > span { color:#c5a44a; letter-spacing:2px; font-size:10px; text-align:right; }
+.read-panel ol { list-style:none; counter-reset:steps; padding:0; margin:0; display:grid; gap:16px; }
+.read-panel li { counter-increment:steps; display:flex; flex-wrap:wrap; align-items:baseline; gap:7px; padding-left:42px; position:relative; font-size:14px; line-height:1.55; color:#b9b9be; }
+.read-panel li::before { content:counter(steps); position:absolute; left:0; top:-2px; width:27px; height:27px; display:grid; place-items:center; border-radius:50%; border:1px solid #444; color:#eee; background:#222; }
+.read-panel li strong { color:#e7bf55; }.read-panel li .text-down { color:#f0787c; }.read-panel li .text-up { color:#70d69c; }
+.watch-toggle { display:flex; align-items:center; gap:9px; color:#c2b58b; font-size:12px; margin:0 0 12px; }.watch-toggle input { accent-color:#e7bf55; }
+.technical-terminal .chart-header h3 { font-size:23px; }.technical-terminal .candle-panel { box-shadow:none; }
+.technical-terminal .candle-toolbar { flex-wrap:wrap; }.technical-terminal .candle-status { color:#c3b78d; }
+.timeframe-tabs { display:flex; gap:8px; margin-bottom:20px; }
+.timeframe-tabs button { cursor:pointer; border:1px solid #494131; border-radius:8px; background:#171717; padding:10px 17px; font:inherit; font-size:13px; color:#bbb; }
+.timeframe-tabs button[aria-pressed="true"] { background:#302710; border-color:#b89439; color:#f3ce6b; }
+.analysis-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }.analysis-metrics div { padding:14px 0; border-top:1px solid #343026; }.analysis-metrics span { display:block; font-size:11px; color:#aaa; margin-bottom:9px; }.analysis-metrics strong { font-size:20px; font-variant-numeric:tabular-nums; }
+.analysis-method, .session-footnote { font-size:12px; color:#999; line-height:1.6; margin:16px 0 0; }
+.trading-plan dl { margin:0; border:1px solid #37342b; border-radius:13px; overflow:hidden; }.trading-plan dl > div { display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #343128; }.trading-plan dl > div:last-child { border:0; }.trading-plan dt,.trading-plan dd { margin:0; padding:15px 18px; font-size:15px; line-height:1.4; }.trading-plan dt { color:#b6b6bb; background:#ffffff02; }.trading-plan dd { font-weight:600; }
+.decision-pill { display:block; border:1px solid #927021; background:#30270f; border-radius:7px; color:#f1cd69; padding:7px 12px; font-size:23px; line-height:1; }
+.terminal-footer { display:flex; align-items:center; gap:20px; border-color:#353535; }.terminal-footer > span { color:#e7bf55; font-size:32px; }.terminal-footer em { color:#ccc; font-size:15px; }.terminal-footer small { margin-left:auto; font-size:10px; letter-spacing:2px; color:#999; }
+.timeframe-tabs button:focus-visible,.watch-toggle input:focus-visible { outline:2px solid #e7bf55; outline-offset:3px; }
+@media(max-width:850px) { .terminal-summary { gap:10px; }.terminal-summary .summary-card { padding:19px 14px; }.terminal-eyebrow { font-size:10px; letter-spacing:1px; }.analysis-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }.terminal-panel-title > span { display:none; } }
+@media(max-width:560px) { .terminal-brand strong { font-size:23px; }.terminal-symbol { font-size:10px; }.terminal-brand small { font-size:8px; letter-spacing:1.5px; }.gold-bar-icon { font-size:37px; }.terminal-summary { grid-template-columns:1fr; }.terminal-summary .summary-card { padding:20px; }.terminal-eyebrow { margin-bottom:12px; }.terminal-card,.technical-terminal .candle-panel { padding:18px 14px; border-radius:14px; }.terminal-intro p { font-size:14px; }.terminal-panel-title h2 { font-size:20px; }.trading-plan dt,.trading-plan dd { padding:12px 10px; font-size:13px; overflow-wrap:anywhere; }.terminal-footer { gap:10px; }.terminal-footer small { display:none; }.terminal-brand { gap:8px; }.timeframe-tabs button { flex:1; padding:9px 7px; }.technical-terminal .candle-header { align-items:flex-start; }.technical-terminal .chart-header h3 { font-size:20px; } }
+.terminal-live-price { display:flex; justify-content:space-between; align-items:center; gap:15px; margin:20px 0; padding:18px 0; border-top:1px solid #333025; border-bottom:1px solid #333025; flex-wrap:wrap; }.terminal-live-price span { display:block; color:#b9ad8a; font-size:11px; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; }.terminal-live-price strong { font-size:32px; font-variant-numeric:tabular-nums; }.terminal-live-price small { font-size:12px; font-weight:400; color:#999; margin-left:12px; }.terminal-live-price p { font-size:12px; color:#aaa; }

@@ -1,3 +1,4 @@
+import { getGoldSession } from "../lib/goldSession";
 import { useEffect, useRef, useState } from "react";
 import { candleWindow, mergeCandles } from "../lib/candles";
 import { requestHistory } from "../lib/historyRequest";
@@ -8,24 +9,25 @@ const stamp = time => new Date(time * 1000).toLocaleString("en-GB", {
   timeZone: "UTC", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
 });
 
-export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS }) {
-  const [interval, setIntervalValue] = useState("5min");
+export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange }) {
+  const [localInterval, setIntervalValue] = useState("5min");
+  const interval = selectedInterval || localInterval;
   return (
     <section className="chart-panel candle-panel">
       <div className="chart-header candle-header">
         <div><span className="section-label">XAUUSD · Saved history</span><h3>Gold Candles</h3></div>
         <label className="candle-timeframe">Timeframe
-          <select value={interval} onChange={event => setIntervalValue(event.target.value)}>
+          <select value={interval} onChange={event => (onIntervalChange || setIntervalValue)(event.target.value)}>
             <option value="5min">5 minutes</option><option value="1h">1 hour</option><option value="1day">1 day</option>
           </select>
         </label>
       </div>
-      <CandleView key={interval} interval={interval} watchLevels={watchLevels} />
+      <CandleView key={interval} interval={interval} watchLevels={watchLevels} onCandlesChange={onCandlesChange} />
     </section>
   );
 }
 
-function CandleView({ interval, watchLevels }) {
+function CandleView({ interval, watchLevels, onCandlesChange }) {
   const [candles, setCandles] = useState([]);
   const [status, setStatus] = useState("Loading saved candles…");
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -40,15 +42,20 @@ function CandleView({ interval, watchLevels }) {
   const retryRef = useRef(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  useEffect(() => { onCandlesChange?.(interval, candles); }, [interval, candles, onCandlesChange]);
+
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
     let busy = false;
+    let loadedClosed = false;
     let failures = 0;
     let followups = 0;
     let retryTimer;
     async function refresh(manual = false) {
       if (busy || (!manual && document.hidden)) return;
+      const open = getGoldSession().isOpen;
+      if (!open && loadedClosed && !manual) return;
       busy = true;
       clearTimeout(retryTimer);
       if (manual) { failures = 0; followups = 0; }
@@ -59,13 +66,14 @@ function CandleView({ interval, watchLevels }) {
           { signal: controller.signal },
         );
         if (active) {
+          loadedClosed = !getGoldSession().isOpen;
           failures = 0;
           setCandles(previous => mergeCandles(previous, data.candles));
           setStatus(data.warning || (data.refreshing
             ? "Showing saved candles while newer prices refresh in the background."
             : data.candles.length ? "History saved in Atlas. Updates checked every 5 minutes."
               : "No candles available for this timeframe."));
-          if (data.refreshing && followups < 10) {
+          if (open && data.refreshing && followups < 10) {
             followups++;
             retryTimer = window.setTimeout(() => refresh(), 3000);
           } else { followups = 0; }
@@ -73,7 +81,7 @@ function CandleView({ interval, watchLevels }) {
       } catch (error) {
         if (active && error.name !== "AbortError") {
           failures++;
-          const willRetry = failures <= 3;
+          const willRetry = getGoldSession().isOpen && failures <= 3;
           setStatus(error.message + (willRetry
             ? " Retrying automatically in 15 seconds. Any candles already loaded remain visible."
             : " Use Retry history to try again. Any candles already loaded remain visible."));
@@ -211,7 +219,7 @@ function CandleView({ interval, watchLevels }) {
         </svg>
       </div>
       <p className="candle-status" role="status">{status}</p>
-      <p className="candle-hint">{candles.length} candles loaded · UTC · Drag to pan, scroll to zoom. The newest candle may still be forming.</p>
+      <p className="candle-hint">{candles.length} candles loaded · UTC · Drag to pan, scroll to zoom. Analysis uses completed candles. The newest candle may still be forming.</p>
       {levels.length > 0 && <div className="candle-levels">{levels.map(level => <span key={level.label} style={{ color: level.color }}>{level.label}: {level.price.toFixed(2)}{level.price < min || level.price > max ? " (outside view)" : ""}</span>)}</div>}
     </>
   );

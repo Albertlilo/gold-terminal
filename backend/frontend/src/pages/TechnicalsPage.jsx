@@ -1,218 +1,64 @@
-import { useState } from "react";
-import PageHeader from "../components/PageHeader";
+import { useCallback, useState } from "react";
 import GoldCandleChart from "../components/GoldCandleChart";
+import { analyseCandles, makeTradingPlan, TIMEFRAMES } from "../lib/technicalAnalysis";
+import { getGoldSession } from "../lib/goldSession";
 
-const NOISE_THRESHOLD_PERCENT = 0.1;
-const MIN_READINGS = 3;
+const money = value => Number.isFinite(value) ? value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 
-function TechnicalsPage({
-  dashboardData,
-  currentTime,
-  goldHistory,
-  goldPrice,
-}) {
+export default function TechnicalsPage({ dashboardData, currentTime, lastSuccessAt, dashboardError, goldPrice }) {
+  const [interval, setInterval] = useState("5min");
+  const [history, setHistory] = useState({});
   const [showWatchLevels, setShowWatchLevels] = useState(true);
+  const receiveCandles = useCallback((timeframe, candles) => setHistory(previous => ({ ...previous, [timeframe]: candles })), []);
+  const now = currentTime.getTime();
+  const session = getGoldSession(now);
   const score = dashboardData?.gold?.score;
-  const macroBias = score?.bias ?? "--";
-
-  const history = Array.isArray(goldHistory) ? goldHistory : [];
-  const validHistory = history.filter(
-    (item) => Number.isFinite(item?.price) && item.price > 0,
-  );
-  const hasInvalidPrices = validHistory.length !== history.length;
-  const firstPrice = validHistory[0]?.price;
-  const latestPrice = validHistory[validHistory.length - 1]?.price;
-  const windowMovePercent = validHistory.length >= 2
-    ? ((latestPrice - firstPrice) / firstPrice) * 100
-    : null;
-  const technicalBias = getTechnicalBias(windowMovePercent, validHistory.length, hasInvalidPrices);
-  const tradeSignal = getTradeSignal(macroBias, technicalBias);
-  const watchLevels = showWatchLevels && !hasInvalidPrices && validHistory.length >= MIN_READINGS
-    ? [
-        { label: "Buy Watch", price: firstPrice * (1 + NOISE_THRESHOLD_PERCENT / 100), color: "#70d69c" },
-        { label: "Sell Watch", price: firstPrice * (1 - NOISE_THRESHOLD_PERCENT / 100), color: "#ef7b7b" },
-      ]
-    : [];
-
+  const macro = score?.bias || "Unavailable";
+  const macroFresh = Boolean(score && lastSuccessAt && now - lastSuccessAt <= 90000 && !dashboardError);
+  const analysis = analyseCandles(history[interval], interval, now);
+  const plan = makeTradingPlan(macro, analysis, { isOpen: session.isOpen, macroFresh });
+  const macroTone = macro === "Bearish" ? "down" : macro === "Bullish" ? "up" : "neutral";
+  const directionText = macro === "Bearish" ? "Background pressure favours lower prices."
+    : macro === "Bullish" ? "Background conditions favour higher prices." : "The macro picture does not provide a clear directional bias.";
   return (
-    <>
-      <PageHeader
-        title="Technicals"
-        subtitle="Live price-action signal layered against the macro bias"
-        currentTime={currentTime}
-      />
-
-      <section className="technicals-hero-grid">
-        <div className="technical-signal-card">
-          <span className="section-label">Technical Signal</span>
-          <h2>{tradeSignal.signal}</h2>
-          <strong className={tradeSignal.className}>
-            {tradeSignal.bias}
-          </strong>
-          <p>{tradeSignal.message}</p>
-        </div>
-
-        <div className="technical-price-card">
-          <span className="section-label">XAUUSD</span>
-          <h2>{goldPrice}</h2>
-          <strong>{technicalBias}</strong>
-          <p>
-            Rolling history move: {Number.isFinite(windowMovePercent) && !hasInvalidPrices
-              ? formatPercent(windowMovePercent)
-              : "--"}
-          </p>
-          <p>Noise band: ±{NOISE_THRESHOLD_PERCENT.toFixed(2)}%</p>
-        </div>
-
-        <div className="technical-macro-card">
-          <span className="section-label">Macro Filter</span>
-          <h2>{macroBias}</h2>
-          <strong>{formatSignedScore(score?.totalScore)} / {score?.maxScore ?? "--"}</strong>
-          <p>
-            The technical signal is stronger when it agrees with the Gold Score macro bias.
-          </p>
-        </div>
+    <div className="technical-terminal">
+      <header className="terminal-brand">
+        <div><span className="gold-bar-icon" aria-hidden="true">▰</span><div><strong><span>Gold</span> Terminal</strong><small>DATA · INSIGHTS · DISCIPLINE</small></div></div>
+        <div className="terminal-symbol"><span>XAUUSD</span><time dateTime={currentTime.toISOString()}>{currentTime.toLocaleString()}</time></div>
+      </header>
+      <div className="terminal-intro"><h1>Macro + Technical Signal</h1><p>Combine the bigger picture with completed-candle confirmation.</p></div>
+      <div className="terminal-live-price"><div><span>XAUUSD · {session.isOpen ? "Latest price" : "Last available price"}</span><strong>{goldPrice ?? "—"}<small>USD / oz</small></strong></div><p>{!session.isOpen ? "Market closed · price held" : dashboardError || !Number.isFinite(dashboardData?.market?.xauusd?.price) || dashboardData?.market?.xauusd?.stale ? "Waiting for a fresh quote" : "Live price · checked every 30 seconds"}</p></div>
+      <div className={`session-notice ${session.isOpen ? "" : "session-closed"}`} role="status">
+        <span className="session-dot" /> <strong>{session.label}</strong>
+        <span>{session.isOpen ? "Scheduled hours · New York time" : "Price readings paused · last available prices shown"}</span>
+      </div>
+      <section className="terminal-summary" aria-label="Signal summary">
+        <article className={`terminal-card summary-card tone-${macroTone}`}><span className="terminal-eyebrow">▥ &nbsp; Macro Bias</span><h2>{macro}</h2><strong className="macro-total">{Number.isFinite(score?.totalScore) ? `${score.totalScore > 0 ? "+" : ""}${score.totalScore}` : "—"}<small> / {score?.maxScore ?? 20}</small></strong>{!macroFresh && <p>Awaiting a current macro update</p>}</article>
+        <article className="terminal-card summary-card tone-neutral"><span className="terminal-eyebrow">↗ &nbsp; Technical State</span><h2>{analysis.state}</h2><p>{TIMEFRAMES[interval].label} · completed candles</p><p>{analysis.state === "Between Levels" ? "No confirmation yet" : analysis.stale ? "Delayed candle data" : "Noise filter ±0.10%"}</p></article>
+        <article className={`terminal-card summary-card tone-${plan.signal === "Sell Watch" ? "down" : plan.signal === "Buy Watch" ? "up" : "neutral"}`}><span className="terminal-eyebrow">◎ &nbsp; Combined Signal</span><h2 className="combined-signal">{plan.signal.toUpperCase()}</h2><p>{plan.reason}</p></article>
       </section>
-
-      <p className="technical-window-note">
-        Signal compares the first and latest of {validHistory.length} valid readings
-        in the live signal window (up to 20 readings), separate from the saved candle chart.
-        At least {MIN_READINGS} valid readings are required. The chart rescales to its price range,
-        so small moves can still look steep.
-      </p>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
-        <input type="checkbox" checked={showWatchLevels}
-          onChange={(event) => setShowWatchLevels(event.target.checked)} />
-        Show Buy / Sell Watch lines
-      </label>
-      {showWatchLevels && (
-        <p className="technical-window-note">
-          Green: Buy Watch above +{NOISE_THRESHOLD_PERCENT.toFixed(2)}% with bullish macro.
-          Red: Sell Watch below -{NOISE_THRESHOLD_PERCENT.toFixed(2)}% with bearish macro.
-          Between the lines: Wait. These are threshold levels, not confirmed entries.
-          Levels update as the oldest reading in the rolling history changes;
-          they appear after {MIN_READINGS} valid readings.
-        </p>
-      )}
-      <GoldCandleChart watchLevels={watchLevels} />
-
-      <section className="technical-rules-panel">
-        <span className="section-label">Trading Logic</span>
-        <h2>How to read this page</h2>
-
-        <div className="technical-rules-grid">
-          <RuleCard
-            title="Sell Watch"
-            text={`Bearish macro and a rolling move below -${NOISE_THRESHOLD_PERCENT.toFixed(2)}%. Watch for rejection or breakdown confirmation before considering an entry.`}
-          />
-
-          <RuleCard
-            title="Buy Watch"
-            text={`Bullish macro and a rolling move above +${NOISE_THRESHOLD_PERCENT.toFixed(2)}%. Watch for support or breakout confirmation before considering an entry.`}
-          />
-
-          <RuleCard
-            title="Wait"
-            text={`Wait when the move is within ±${NOISE_THRESHOLD_PERCENT.toFixed(2)}% (including the boundary), macro is neutral or unavailable, the signals disagree, or price data is insufficient or invalid.`}
-          />
-        </div>
+      <section className="terminal-card read-panel">
+        <div className="terminal-panel-title"><h2><span aria-hidden="true">▤</span> How to Read This</h2><span>DISCIPLINE WINS</span></div>
+        <ol><li><strong className={`text-${macroTone}`}>{macro} macro</strong><span>{directionText}</span></li><li><strong>{analysis.state}</strong><span>{analysis.ready ? "Compare the last completed close with the watch levels." : "Load this timeframe to calculate its levels."}</span></li><li><strong>Action</strong><span>{plan.reason}</span></li></ol>
       </section>
-    </>
-  );
-}
-
-function getTechnicalBias(movePercent, count, invalid) {
-  if (invalid) return "Invalid Price Data";
-  if (count < MIN_READINGS || !Number.isFinite(movePercent)) return "Collecting Data";
-  // Ignore floating-point error at the inclusive noise-band boundary.
-  if (Math.abs(movePercent) <= NOISE_THRESHOLD_PERCENT + 1e-10) return "Price Noise";
-  return movePercent > 0 ? "Bullish Momentum" : "Bearish Momentum";
-}
-
-function formatPercent(value) {
-  return new Intl.NumberFormat("en", {
-    style: "percent", signDisplay: "exceptZero", minimumFractionDigits: 3,
-    maximumFractionDigits: 6,
-  }).format(value / 100);
-}
-
-function getTradeSignal(macroBias, technicalBias) {
-  if (technicalBias === "Invalid Price Data") {
-    return { signal: "Wait", bias: technicalBias, className: "neutral-score",
-      message: "The price history contains invalid readings. Wait for valid price data." };
-  }
-  if (technicalBias === "Price Noise") {
-    return { signal: "Wait", bias: technicalBias, className: "neutral-score",
-      message: "The rolling price move is inside the noise band. There is no directional technical signal yet." };
-  }
-  if (technicalBias === "Collecting Data") {
-    return {
-      signal: "Wait",
-      bias: "Collecting Data",
-      className: "neutral-score",
-      message: "The chart needs more live readings before giving a technical signal.",
-    };
-  }
-
-  if (macroBias === "Bearish" && technicalBias === "Bearish Momentum") {
-    return {
-      signal: "Sell Watch",
-      bias: "Macro + Technicals Agree",
-      className: "negative-score",
-      message: "Gold has bearish macro pressure and live price action is confirming downside momentum.",
-    };
-  }
-
-  if (macroBias === "Bullish" && technicalBias === "Bullish Momentum") {
-    return {
-      signal: "Buy Watch",
-      bias: "Macro + Technicals Agree",
-      className: "positive-score",
-      message: "Gold has bullish macro support and live price action is confirming upside momentum.",
-    };
-  }
-
-  if (macroBias === "Bearish" && technicalBias === "Bullish Momentum") {
-    return {
-      signal: "Wait",
-      bias: "Technical Bounce Against Macro",
-      className: "neutral-score",
-      message: "Macro is bearish, but price is rising. Wait for rejection or clearer confirmation.",
-    };
-  }
-
-  if (macroBias === "Bullish" && technicalBias === "Bearish Momentum") {
-    return {
-      signal: "Wait",
-      bias: "Technical Pullback Against Macro",
-      className: "neutral-score",
-      message: "Macro is bullish, but price is falling. Wait for support or reversal confirmation.",
-    };
-  }
-
-  return {
-    signal: "Wait",
-    bias: "Macro Neutral or Unavailable",
-    className: "neutral-score",
-    message: "A directional macro bias is required before a Buy or Sell Watch can appear.",
-  };
-}
-
-function RuleCard({ title, text }) {
-  return (
-    <div className="technical-rule-card">
-      <h3>{title}</h3>
-      <p>{text}</p>
+      <div className="terminal-chart-wrap">
+        <label className="watch-toggle"><input type="checkbox" checked={showWatchLevels} onChange={event => setShowWatchLevels(event.target.checked)} />Show Buy / Sell Watch lines</label>
+        <GoldCandleChart interval={interval} onIntervalChange={setInterval} onCandlesChange={receiveCandles} watchLevels={showWatchLevels ? analysis.levels : []} />
+      </div>
+      <section className="terminal-card timeframe-panel">
+        <div className="terminal-panel-title"><h2>Timeframe Analysis</h2><span>COMPLETED CANDLES ONLY</span></div>
+        <div className="timeframe-tabs" aria-label="Analysis timeframe">{Object.entries(TIMEFRAMES).map(([key, value]) => <button key={key} aria-pressed={interval === key} onClick={() => setInterval(key)}>{value.label}</button>)}</div>
+        <div className="analysis-metrics"><div><span>Last completed close</span><strong>{money(analysis.close)}</strong></div><div><span>Window momentum</span><strong>{Number.isFinite(analysis.move) ? `${analysis.move > 0 ? "+" : ""}${analysis.move.toFixed(3)}%` : "—"}</strong></div><div><span>Window low / support</span><strong>{money(analysis.support)}</strong></div><div><span>Window high / resistance</span><strong>{money(analysis.resistance)}</strong></div></div>
+        <p className="analysis-method">{analysis.count} of up to 20 completed {TIMEFRAMES[interval].label.toLowerCase()} candles. Watch levels are ±0.10% from the first close in this window; the exact boundaries remain neutral. Levels roll as candles complete. Highs and lows are reference levels, not guaranteed support or resistance.</p>
+        {analysis.lastTime && <p className="analysis-method">Last analysed candle opened: {new Date(analysis.lastTime * 1000).toUTCString()}</p>}
+      </section>
+      <section className="terminal-card trading-plan">
+        <div className="terminal-panel-title"><h2><span aria-hidden="true">▣</span> Trading Plan</h2><span>PLAN › CONFIRM › REVIEW</span></div>
+        <dl><div><dt>Preferred Direction</dt><dd className={`text-${macroTone}`}>{plan.preferred}</dd></div><div><dt>Confirmation</dt><dd>{plan.confirmation}</dd></div><div><dt>Invalidation</dt><dd>{plan.invalidation}</dd></div><div><dt>Current Decision</dt><dd><strong className="decision-pill">{plan.signal.toUpperCase()}</strong></dd></div></dl>
+        <p className="analysis-method">Confirmation uses the selected timeframe’s completed close. These are watch conditions, not automatic entries or stop-loss instructions.</p>
+      </section>
+      <footer className="terminal-card terminal-footer"><span aria-hidden="true">◇</span><em>Macro gives bias. Technicals give timing.</em><small>WAIT FOR ALIGNMENT</small></footer>
+      <p className="session-footnote">Session estimate: Sunday 18:00–Friday 17:00, with a daily 17:00–18:00 break in New York. Daylight saving is applied automatically. Broker and holiday closures may differ.</p>
     </div>
   );
 }
-
-function formatSignedScore(value) {
-  if (value === null || value === undefined) {
-    return "--";
-  }
-
-  return value > 0 ? `+${value}` : `${value}`;
-}
-
-export default TechnicalsPage;

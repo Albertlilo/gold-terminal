@@ -27,7 +27,7 @@ function normalizeCandles(values) {
 }
 
 // Dependencies are injected so persistence, retries and paging can be tested offline.
-function createHistoryService({ store, fetchCandles, now = Date.now }) {
+function createHistoryService({ store, fetchCandles, now = Date.now, canRefresh = () => true }) {
   const requests = new Map();
   return async function getHistory(interval = "5min", before) {
     if (!INTERVALS.includes(interval)
@@ -41,7 +41,7 @@ function createHistoryService({ store, fetchCandles, now = Date.now }) {
     const key = `${interval}:${before ?? "latest"}`;
     // Refresh requested pages as well as the latest page, so long periods offline
     // can be backfilled instead of silently jumping across a gap in stored data.
-    const shouldRefresh = true;
+    const shouldRefresh = canRefresh();
     let state = requests.get(key);
     if (shouldRefresh && (!state || (!state.pending && now() - state.startedAt >= (state.warning ? 15000 : REFRESH_MS)))) {
       if (requests.size >= 40) {
@@ -59,7 +59,7 @@ function createHistoryService({ store, fetchCandles, now = Date.now }) {
       state.promise = (async () => {
         try {
           const fresh = await fetchCandles(interval, before);
-          if (fresh.length) await store.save(interval, fresh);
+          if (fresh.length && canRefresh()) await store.save(interval, fresh);
           state.refreshedAt = new Date(now()).toISOString();
         } catch {
           state.warning = "Could not refresh candles. Showing saved history; check the data plan, API quota and database connection.";
@@ -83,8 +83,8 @@ function createHistoryService({ store, fetchCandles, now = Date.now }) {
     return {
       symbol: SYMBOL, interval, candles, saved: true,
       refreshedAt: state?.refreshedAt ?? null,
-      refreshing: state?.pending ?? false,
-      warning: state?.warning ?? null,
+      refreshing: shouldRefresh && (state?.pending ?? false),
+      warning: !shouldRefresh ? "Market closed by the selected session schedule. Showing saved candles; provider refresh is paused." : state?.warning ?? null,
       // An empty older page is the definitive end of available history.
       hasMore: candles.length > 0,
     };

@@ -1,3 +1,4 @@
+import { getGoldSession } from "./lib/goldSession";
 import DashboardDataStatus from "./components/DashboardDataStatus";
 import TechnicalsPage from "./pages/TechnicalsPage";
 import IndicatorsPage from "./pages/IndicatorsPage";
@@ -58,9 +59,12 @@ function App() {
         if (disposed) return;
         if (!data?.gold?.score || !data?.market) throw new Error("Incomplete dashboard response");
         setDashboardError("");
+        const closed = !getGoldSession().isOpen || data?.market?.xauusd?.marketClosed;
+        if (closed && previousGoldPrice.current !== null) data.market.xauusd.price = previousGoldPrice.current;
         const newGoldPrice = data?.market?.xauusd?.price;
+        if (closed) { setGoldMovement("Market closed"); setGoldChange(0); setGoldChangePercent(0); }
 
-        if (typeof newGoldPrice === "number") {
+        if (!closed && Number.isFinite(newGoldPrice) && newGoldPrice > 0 && !data.market.xauusd.stale) {
           setGoldHistory((history) => [
             ...history.slice(-19),
             {
@@ -103,6 +107,7 @@ function App() {
           previousGoldPrice.current = newGoldPrice;
         }
 
+        if (closed && previousGoldPrice.current === null && Number.isFinite(newGoldPrice)) previousGoldPrice.current = newGoldPrice;
         setDashboardData(data);
         setLastSuccessAt(Date.now());
       } catch (error) {
@@ -143,7 +148,12 @@ function App() {
   const goldPrice =
     typeof dashboardData?.market?.xauusd?.price === "number"
       ? dashboardData.market.xauusd.price.toFixed(2)
-      : dashboardError ? "Unavailable" : "Loading...";
+      : dashboardError || dashboardData ? "Unavailable" : "Loading...";
+
+  const sessionClosed = !getGoldSession(currentTime.getTime()).isOpen;
+  const displayedMovement = sessionClosed ? "Market closed" : goldMovement;
+  const displayedChange = sessionClosed ? 0 : goldChange;
+  const displayedChangePercent = sessionClosed ? 0 : goldChangePercent;
 
   const goldScore =
     dashboardData?.gold?.score?.totalScore ?? "--";
@@ -210,9 +220,9 @@ function App() {
             unemployment={unemployment}
             vix={vix}
             m2={m2}
-            goldMovement={goldMovement}
-            goldChange={goldChange}
-            goldChangePercent={goldChangePercent}
+            goldMovement={displayedMovement}
+            goldChange={displayedChange}
+            goldChangePercent={displayedChangePercent}
             sessionHigh={sessionHigh}
             sessionLow={sessionLow}
             sessionRange={sessionRange}
@@ -238,9 +248,9 @@ function App() {
             dashboardData={dashboardData}
             currentTime={currentTime}
             goldPrice={goldPrice}
-            goldMovement={goldMovement}
-            goldChange={goldChange}
-            goldChangePercent={goldChangePercent}
+            goldMovement={displayedMovement}
+            goldChange={displayedChange}
+            goldChangePercent={displayedChangePercent}
             goldHistory={goldHistory}
             realYield={realYield}
             dollarIndex={dollarIndex}
@@ -252,13 +262,15 @@ function App() {
 
         {activePage === "technicals" && (
           <TechnicalsPage
+            lastSuccessAt={lastSuccessAt}
+            dashboardError={dashboardError}
             dashboardData={dashboardData}
             currentTime={currentTime}
             goldHistory={goldHistory}
             goldPrice={goldPrice}
-            goldMovement={goldMovement}
-            goldChange={goldChange}
-            goldChangePercent={goldChangePercent}
+            goldMovement={displayedMovement}
+            goldChange={displayedChange}
+            goldChangePercent={displayedChangePercent}
           />
         )}
 

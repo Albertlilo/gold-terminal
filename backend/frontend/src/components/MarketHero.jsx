@@ -27,7 +27,7 @@ function MarketHero({
           </span>
         </div>
 
-        <p>Live gold spot market</p>
+        <p>{goldMovement === "Market closed" ? "Market closed · last available gold price" : "Gold spot market"}</p>
 
         <div className={`market-change ${movementClass}`}>
           {goldChange >= 0 ? "+" : ""}
