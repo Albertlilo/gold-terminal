@@ -9,6 +9,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
   const [interval, setInterval] = useState("5min");
   const [history, setHistory] = useState({});
   const [showWatchLevels, setShowWatchLevels] = useState(true);
+  const [showZones, setShowZones] = useState(true);
   const receiveCandles = useCallback((timeframe, candles) => setHistory(previous => ({ ...previous, [timeframe]: candles })), []);
   const now = currentTime.getTime();
   const session = getGoldSession(now);
@@ -35,28 +36,31 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
       {dashboardData?.market?.xauusd?.priceSource === "saved_candle" && <p className="analysis-method">Saved candle reference · not a live quote or an official session close. Candle ended {new Date(dashboardData.market.xauusd.receivedAt).toLocaleString()}. Provider data can include out-of-session timestamps.</p>}
       <section className="terminal-summary" aria-label="Signal summary">
         <article className={`terminal-card summary-card tone-${macroTone}`}><span className="terminal-eyebrow">▥ &nbsp; Macro Bias</span><h2>{macro}</h2><strong className="macro-total">{Number.isFinite(score?.totalScore) ? `${score.totalScore > 0 ? "+" : ""}${score.totalScore}` : "—"}<small> / {score?.maxScore ?? 20}</small></strong>{!macroFresh && <p>Awaiting a current macro update</p>}</article>
-        <article className="terminal-card summary-card tone-neutral"><span className="terminal-eyebrow">↗ &nbsp; Technical State</span><h2>{analysis.state}</h2><p>{TIMEFRAMES[interval].label} · completed candles</p><p>{analysis.state === "Between Levels" ? "No confirmation yet" : analysis.stale ? "Delayed candle data" : "Noise filter ±0.10%"}</p></article>
+        <article className="terminal-card summary-card tone-neutral"><span className="terminal-eyebrow">↗ &nbsp; Technical State</span><h2>{analysis.state}</h2><p>{TIMEFRAMES[interval].label} · completed candles</p><p>{analysis.state === "Between zones" ? "No confirmation yet" : analysis.stale ? "Delayed candle data" : "Break clearance >0.10%"}</p></article>
         <article className={`terminal-card summary-card tone-${plan.signal === "Sell Watch" ? "down" : plan.signal === "Buy Watch" ? "up" : "neutral"}`}><span className="terminal-eyebrow">◎ &nbsp; Combined Signal</span><h2 className="combined-signal">{plan.signal.toUpperCase()}</h2><p>{plan.reason}</p></article>
       </section>
       <section className="terminal-card read-panel">
         <div className="terminal-panel-title"><h2><span aria-hidden="true">▤</span> How to Read This</h2><span>DISCIPLINE WINS</span></div>
-        <ol><li><strong className={`text-${macroTone}`}>{macro} macro</strong><span>{directionText}</span></li><li><strong>{analysis.state}</strong><span>{analysis.ready ? "Compare the last completed close with the watch levels." : "Load this timeframe to calculate its levels."}</span></li><li><strong>Action</strong><span>{plan.reason}</span></li></ol>
+        <ol><li><strong className={`text-${macroTone}`}>{macro} macro</strong><span>{directionText}</span></li><li><strong>{analysis.state}</strong><span>{analysis.ready ? "A price break alone is not confirmation; a later completed candle must retest the frozen zone." : "Load this timeframe to calculate its levels."}</span></li><li><strong>Action</strong><span>{plan.reason}</span></li></ol>
       </section>
       <div className="terminal-chart-wrap">
-        <label className="watch-toggle"><input type="checkbox" checked={showWatchLevels} onChange={event => setShowWatchLevels(event.target.checked)} />Show Buy / Sell Watch lines</label>
-        <GoldCandleChart interval={interval} onIntervalChange={setInterval} onCandlesChange={receiveCandles} watchLevels={showWatchLevels ? analysis.levels : []} />
+        <label className="watch-toggle"><input type="checkbox" checked={showWatchLevels} onChange={event => setShowWatchLevels(event.target.checked)} />Show Buy / Sell Watch triggers</label>
+        <label className="watch-toggle"><input type="checkbox" checked={showZones} onChange={event => setShowZones(event.target.checked)} />Show support / resistance zones</label>
+        <GoldCandleChart zones={showZones ? analysis.zones : []} interval={interval} onIntervalChange={setInterval} onCandlesChange={receiveCandles} watchLevels={showWatchLevels ? analysis.levels : []} />
       </div>
       <section className="terminal-card timeframe-panel">
         <div className="terminal-panel-title"><h2>Timeframe Analysis</h2><span>COMPLETED CANDLES ONLY</span></div>
         <div className="timeframe-tabs" aria-label="Analysis timeframe">{Object.entries(TIMEFRAMES).map(([key, value]) => <button key={key} aria-pressed={interval === key} onClick={() => setInterval(key)}>{value.label}</button>)}</div>
-        <div className="analysis-metrics"><div><span>Last completed close</span><strong>{money(analysis.close)}</strong></div><div><span>Window momentum</span><strong>{Number.isFinite(analysis.move) ? `${analysis.move > 0 ? "+" : ""}${analysis.move.toFixed(3)}%` : "—"}</strong></div><div><span>Window low / support</span><strong>{money(analysis.support)}</strong></div><div><span>Window high / resistance</span><strong>{money(analysis.resistance)}</strong></div></div>
-        <p className="analysis-method">{analysis.count} of up to 20 completed {TIMEFRAMES[interval].label.toLowerCase()} candles. Watch levels are ±0.10% from the first close in this window; the exact boundaries remain neutral. Levels roll as candles complete. Highs and lows are reference levels, not guaranteed support or resistance.</p>
+        <p className="technical-confirmation"><strong>Technical confirmation:</strong> {analysis.stale ? "Delayed data — historical confirmation only" : analysis.confirmation === "None" ? "Not confirmed" : analysis.confirmation} · independent of macro bias</p>
+        <div className="zone-readout">{analysis.zones.map(zone => <span key={zone.label} style={{ color: zone.color }}>{zone.label}: {money(zone.low)}–{money(zone.high)}</span>)}</div>
+        <div className="analysis-metrics"><div><span>Last completed close</span><strong>{money(analysis.close)}</strong></div><div><span>Window momentum</span><strong>{Number.isFinite(analysis.move) ? `${analysis.move > 0 ? "+" : ""}${analysis.move.toFixed(3)}%` : "—"}</strong></div><div><span>Support lower edge</span><strong>{money(analysis.support)}</strong></div><div><span>Resistance upper edge</span><strong>{money(analysis.resistance)}</strong></div></div>
+        <p className="analysis-method">Zones use the previous 20 completed candles’ high and low, with bands based on a quarter of their average range (minimum 0.05% of price, capped to prevent overlap). A completed close must clear the outer edge by more than 0.10%. Zones and trigger levels freeze at the break. A later candle must touch the zone and close beyond the same trigger to confirm. Setups expire after 10 subsequent candles or invalidate on a close through the opposite zone edge. Forming candles never confirm.</p>
         {analysis.lastTime && <p className="analysis-method">Last analysed candle opened: {new Date(analysis.lastTime * 1000).toUTCString()}</p>}
       </section>
       <section className="terminal-card trading-plan">
         <div className="terminal-panel-title"><h2><span aria-hidden="true">▣</span> Trading Plan</h2><span>PLAN › CONFIRM › REVIEW</span></div>
         <dl><div><dt>Preferred Direction</dt><dd className={`text-${macroTone}`}>{plan.preferred}</dd></div><div><dt>Confirmation</dt><dd>{plan.confirmation}</dd></div><div><dt>Invalidation</dt><dd>{plan.invalidation}</dd></div><div><dt>Current Decision</dt><dd><strong className="decision-pill">{plan.signal.toUpperCase()}</strong></dd></div></dl>
-        <p className="analysis-method">Confirmation uses the selected timeframe’s completed close. These are watch conditions, not automatic entries or stop-loss instructions.</p>
+        <p className="analysis-method">Buy Watch requires a breakout and successful retest; Sell Watch requires a support break and failed retest. These are watch conditions, not automatic entries or stop-loss instructions.</p>
       </section>
       <footer className="terminal-card terminal-footer"><span aria-hidden="true">◇</span><em>Macro gives bias. Technicals give timing.</em><small>WAIT FOR ALIGNMENT</small></footer>
       <p className="session-footnote">Session estimate: Sunday 18:00–Friday 17:00, with a daily 17:00–18:00 break in New York. Daylight saving is applied automatically. Broker and holiday closures may differ.</p>

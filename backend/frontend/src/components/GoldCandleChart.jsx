@@ -9,7 +9,7 @@ const stamp = time => new Date(time * 1000).toLocaleString("en-GB", {
   timeZone: "UTC", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
 });
 
-export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange }) {
+export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange }) {
   const [localInterval, setIntervalValue] = useState("5min");
   const interval = selectedInterval || localInterval;
   return (
@@ -22,12 +22,12 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, interval: 
           </select>
         </label>
       </div>
-      <CandleView key={interval} interval={interval} watchLevels={watchLevels} onCandlesChange={onCandlesChange} />
+      <CandleView key={interval} interval={interval} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} />
     </section>
   );
 }
 
-function CandleView({ interval, watchLevels, onCandlesChange }) {
+function CandleView({ interval, watchLevels, zones, onCandlesChange }) {
   const [magnify, setMagnify] = useState(false);
   const [candles, setCandles] = useState([]);
   const [status, setStatus] = useState("Loading saved candles…");
@@ -207,6 +207,10 @@ function CandleView({ interval, watchLevels, onCandlesChange }) {
             const price = min + (max - min) * index / 4;
             return <g key={index}><line x1="8" x2={plotWidth + 8} y1={y(price)} y2={y(price)} stroke="#292929" /><text x={plotWidth + 15} y={y(price) + 4} fill="#999" fontSize="11">{price.toFixed(2)}</text></g>;
           })}
+          {zones.filter(zone => Number.isFinite(zone.low) && Number.isFinite(zone.high) && zone.high >= min && zone.low <= max).map(zone => <g key={zone.label}>
+            <rect x="8" y={y(Math.min(max, zone.high))} width={plotWidth} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={zone.color} fillOpacity="0.12" stroke={zone.color} strokeOpacity="0.4" />
+            <text x="12" y={Math.min(bottom - 4, y(Math.min(max, zone.high)) + 13)} fill={zone.color} fontSize="11">{zone.label}</text>
+          </g>)}
           {visible.map((candle, index) => {
             const color = candle.close >= candle.open ? "#70d69c" : "#ef7b7b";
             return <g key={candle.time}><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} stroke={color} /><rect x={x(index) - Math.max(1, step * 0.65) / 2} y={Math.min(y(candle.open), y(candle.close))} width={Math.max(1, step * 0.65)} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))} fill={color} /></g>;
@@ -221,6 +225,7 @@ function CandleView({ interval, watchLevels, onCandlesChange }) {
       </div>
       <p className="candle-status" role="status">{status}</p>
       <p className="candle-hint">{candles.length} candles loaded · UTC · Drag to pan, scroll to zoom. Analysis uses completed candles. The newest candle may still be forming.</p>
+      {zones.length > 0 && <div className="candle-levels">{zones.map(zone => <span key={zone.label} style={{ color: zone.color }}>{zone.label}: {zone.low.toFixed(2)}–{zone.high.toFixed(2)}{zone.high < min || zone.low > max ? " (outside view)" : ""}</span>)}</div>}
       {levels.length > 0 && <div className="candle-levels">{levels.map(level => <span key={level.label} style={{ color: level.color }}>{level.label}: {level.price.toFixed(2)}{level.price < min || level.price > max ? " (outside view)" : ""}</span>)}</div>}
     </>
   );
