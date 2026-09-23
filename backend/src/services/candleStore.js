@@ -1,4 +1,6 @@
 let connection;
+let auditCollection;
+let auditIndex;
 
 async function getCollection() {
   if (!process.env.MONGODB_URI) throw new Error("Atlas configuration missing");
@@ -12,6 +14,7 @@ async function getCollection() {
       try {
         await client.connect();
         const collection = client.db(process.env.MONGODB_DATABASE || "gold_terminal").collection("candles");
+        auditCollection = client.db(process.env.MONGODB_DATABASE || "gold_terminal").collection("signal_audit");
         await collection.createIndex({ symbol: 1, interval: 1, time: 1 }, { unique: true });
         return collection;
       } catch (error) {
@@ -24,6 +27,12 @@ async function getCollection() {
 }
 
 module.exports = {
+  async getAuditCollection() {
+    await getCollection();
+    if (!auditIndex) auditIndex = auditCollection.createIndex({ interval: 1, candleTime: -1 }).catch(error => { auditIndex = null; throw error; });
+    await auditIndex;
+    return auditCollection;
+  },
   async read(interval, before, limit) {
     const collection = await getCollection();
     const query = { symbol: "XAU/USD", interval };

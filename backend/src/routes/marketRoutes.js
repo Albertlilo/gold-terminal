@@ -4,6 +4,25 @@ const axios = require("axios");
 const store = require("../services/candleStore");
 const { createHistoryService, normalizeCandles, PAGE_SIZE } = require("../services/candleHistoryService");
 const router = express.Router();
+const { createSignalAuditService } = require("../services/signalAuditService");
+let auditService;
+async function auditHistory(interval, candles) {
+  if (!auditService) {
+    const { analyseCandles, makeTradingPlan } = await import("../../frontend/src/lib/technicalAnalysis.js");
+    auditService = createSignalAuditService({ analyse: analyseCandles, plan: makeTradingPlan,
+      store: require("../services/signalAuditStore"), macro: require("../services/macroSnapshot").current,
+      session: getGoldSession });
+  }
+  return auditService(interval, candles);
+}
+async function boundedAudit(interval, candles) {
+  let timer;
+  try {
+    return await Promise.race([auditHistory(interval, candles), new Promise(resolve => {
+      timer = setTimeout(() => resolve({ status: "unavailable", warning: "Signal audit is taking longer than expected. Candles remain available; this calculation is provisional." }), 2500);
+    })]);
+  } finally { clearTimeout(timer); }
+}
 
 const getHistory = createHistoryService({
   store,
@@ -26,6 +45,10 @@ router.get("/gold/history", async (req, res) => {
     const interval = req.query.interval ?? "5min";
     const before = req.query.before === undefined ? undefined : Number(req.query.before);
     const history = await getHistory(interval, before);
+    if (before === undefined) {
+      try { history.signalAudit = await boundedAudit(interval, history.candles); }
+      catch { history.signalAudit = { status: "unavailable", warning: "Signal audit unavailable; saved candles remain available." }; }
+    }
     res.set("Cache-Control", "no-store").json(history);
   } catch (error) {
     const category = error.code === 18 ? "authentication"

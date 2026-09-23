@@ -9,6 +9,7 @@ function savedCandleQuote(rows, now = Date.now()) {
 function createMarketSnapshotService({ fetchPrice, readSavedPrice, now = Date.now, session = getGoldSession }) {
   let lastPrice = null, lastAt = null, lastFetch = -Infinity, pending = null;
   let wasClosed = false, closedRead = false, savedPending = null, priceSource = null;
+  let providerFailed = false;
   return async function getSnapshot() {
     const state = session(now());
     if (!state.isOpen) {
@@ -33,14 +34,29 @@ function createMarketSnapshotService({ fetchPrice, readSavedPrice, now = Date.no
           if (!Number.isFinite(price) || price <= 0) throw new Error("Gold quote unavailable");
           // A response arriving after the close must not move the frozen price.
           if (session(now()).isOpen) { lastPrice = price; lastAt = new Date(now()).toISOString(); priceSource = "quote"; }
-        })().finally(() => { pending = null; });
+          providerFailed = false;
+        })().catch(async () => {
+          providerFailed = true;
+          // Keep the previous quote and its original timestamp. On cold start,
+          // saved candles are a reference fallback, never a live quote.
+          if (lastPrice === null && session(now()).isOpen) {
+            try {
+              const saved = await readSavedPrice();
+              if (session(now()).isOpen && Number.isFinite(saved?.price) && saved.price > 0 && Number.isFinite(Date.parse(saved.time))) {
+                lastPrice = saved.price; lastAt = saved.time; priceSource = "saved_candle";
+              }
+            } catch { /* Return explicit unavailability without failing macro data. */ }
+          }
+        }).finally(() => { pending = null; });
       }
       if (pending) await pending;
     }
     const current = session(now());
     return { xauusd: { symbol: "XAU/USD", price: lastPrice, receivedAt: lastAt, priceSource,
       marketClosed: !current.isOpen, session: current.label, scheduleEstimated: true,
-      stale: lastAt === null || now() - Date.parse(lastAt) > 90000 }, dxy: null };
+      providerFailed, fallback: providerFailed || priceSource === "saved_candle",
+      status: lastPrice === null ? "unavailable" : !current.isOpen ? "closed" : providerFailed || priceSource === "saved_candle" ? "fallback" : "live",
+      stale: providerFailed || priceSource === "saved_candle" || lastAt === null || now() - Date.parse(lastAt) > 90000 }, dxy: null };
   };
 }
 module.exports = { createMarketSnapshotService, savedCandleQuote };

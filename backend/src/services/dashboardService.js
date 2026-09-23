@@ -91,6 +91,8 @@ const bearishDrivers = goldScore.drivers
   .filter(driver => driver.points < 0)
   .slice(0, 3);
 
+require("./macroSnapshot").remember(goldScore);
+
   const goldSummary =
   goldScore.bias === "Neutral"
     ? "Balanced Macro Forces"

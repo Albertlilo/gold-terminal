@@ -2623,3 +2623,13 @@ textarea {
 
 .zone-readout { display:flex; flex-wrap:wrap; gap:10px 24px; font-size:13px; margin:16px 0; }
 .technical-confirmation { color:#ddd; font-size:14px; line-height:1.5; padding:12px 14px; background:#19170f; border:1px solid #514321; border-radius:9px; }
+.coverage-status { color:#c6b77f; font-size:13px; line-height:1.6; }
+.data-receipts { display:flex; flex-wrap:wrap; gap:10px 24px; color:#999; font-size:11px; line-height:1.6; margin:0 0 20px; }.data-receipts strong { color:#bbb; font-weight:400; }
+.signal-review details { border-top:1px solid #393427; padding:15px 0; }.signal-review summary { cursor:pointer; color:#d5be77; font-size:14px; }.signal-review details p { font-size:13px; line-height:1.6; }
+.review-fields { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin-top:16px; }.review-fields label { display:grid; gap:8px; color:#bbb; font-size:12px; flex:1 1 140px; min-width:0; }.review-fields input,.review-fields select,.review-fields button { box-sizing:border-box; width:100%; border:1px solid #554a2e; border-radius:7px; padding:10px; background:#171717; color:#eee; font:inherit; }.review-fields button { cursor:pointer; width:auto; color:#e7bf55; }.review-fields :focus-visible,.signal-review summary:focus-visible { outline:2px solid #e7bf55; outline-offset:3px; }
+.audit-records { padding:0; list-style:none; }.audit-records li { display:grid; gap:5px; padding:12px 0; border-bottom:1px solid #302d26; font-size:12px; color:#aaa; }.audit-records strong { color:#ddd; }
+.coverage-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:18px; }
+.coverage-grid article { border-top:1px solid #393427; padding-top:14px; min-width:0; }
+.coverage-grid h3 { color:#e7bf55; font-size:15px; margin:0 0 8px; }
+.coverage-grid p { color:#aaa; font-size:13px; line-height:1.6; margin:0; }
+@media(max-width:650px) { .coverage-grid { grid-template-columns:1fr; gap:18px; }.upcoming-coverage .terminal-panel-title { flex-wrap:wrap; }.upcoming-coverage .terminal-panel-title > span { display:block; } }

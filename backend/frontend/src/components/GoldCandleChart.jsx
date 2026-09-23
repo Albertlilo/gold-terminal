@@ -9,7 +9,7 @@ const stamp = time => new Date(time * 1000).toLocaleString("en-GB", {
   timeZone: "UTC", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
 });
 
-export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange }) {
+export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange, onAuditChange }) {
   const [localInterval, setIntervalValue] = useState("5min");
   const interval = selectedInterval || localInterval;
   return (
@@ -22,12 +22,12 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EM
           </select>
         </label>
       </div>
-      <CandleView key={interval} interval={interval} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} />
+      <CandleView key={interval} interval={interval} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} onAuditChange={onAuditChange} />
     </section>
   );
 }
 
-function CandleView({ interval, watchLevels, zones, onCandlesChange }) {
+function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChange }) {
   const [magnify, setMagnify] = useState(false);
   const [candles, setCandles] = useState([]);
   const [status, setStatus] = useState("Loading saved candles…");
@@ -67,6 +67,7 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange }) {
           { signal: controller.signal },
         );
         if (active) {
+          onAuditChange?.(interval, data.signalAudit ?? null);
           loadedClosed = !getGoldSession().isOpen;
           failures = 0;
           setCandles(previous => mergeCandles(previous, data.candles));
@@ -109,7 +110,7 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange }) {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [interval]);
+  }, [interval, onAuditChange]);
 
   useEffect(() => {
     const element = chartRef.current;
