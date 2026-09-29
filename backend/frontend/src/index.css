@@ -2558,6 +2558,13 @@ textarea {
 .candle-ohlc { display: flex; flex-wrap: wrap; gap: 8px 14px; min-height: 38px; color: #bbb; font-size: 12px; font-variant-numeric: tabular-nums; }
 .candle-status, .candle-hint { color: #aaa; font-size: 12px; line-height: 1.5; margin: 10px 0 0; }
 .candle-levels { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 12px; margin-top: 12px; }
+.candle-panel { min-width:0; max-width:100%; box-sizing:border-box; }
+.candle-scale-controls { display:flex; flex-wrap:wrap; gap:12px 20px; margin:12px 0 16px; color:#bdb6a0; font-size:12px; }
+.candle-scale-controls label { display:flex; align-items:center; gap:8px; min-height:32px; }
+.candle-scale-controls input { accent-color:#d4af37; width:17px; height:17px; }
+.candle-ohlc time { flex-basis:100%; color:#e0c675; }.candle-ohlc strong { color:#ddd; font-weight:500; }
+.candle-surface { overflow:hidden; }.candle-levels span { overflow-wrap:anywhere; }
+@media(max-width:600px) { .candle-toolbar button,.candle-timeframe select { min-height:44px; }.candle-toolbar button { flex:1 1 auto; }.candle-header { align-items:flex-start; }.candle-timeframe { width:100%; justify-content:space-between; }.candle-timeframe select { min-width:140px; }.candle-ohlc { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }.candle-ohlc time { grid-column:1 / -1; }.candle-scale-controls { gap:4px 12px; } }
 
 /* Dashboard request status: wraps on narrow screens without hiding errors. */
 .dashboard-data-status { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 16px 18px; margin-bottom: 24px; background: #101010; border: 1px solid #333; border-radius: 13px; }
