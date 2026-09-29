@@ -87,3 +87,11 @@ Economic calendar alerts, dedicated DXY coverage and source-linked geopolitical 
 
 ## Verification
 Run the Node test files under `backend/test` and `backend/frontend/test`, frontend ESLint, and the Vite build. Tests cover quote fallback/recovery, concurrent request coalescing, audit immutability and failures, future-data exclusion, execution timing, costs, session gating, ambiguous fills and gaps. Live provider/Atlas integration still needs checking after deployment; offline tests use injected stores and providers.
+
+## Revised retest timing (zones-retest-v2)
+
+Retests can now span multiple completed candles. Zone geometry and the 0.10% trigger clearance are unchanged. The breakout candle cannot count as its own retest. A later zone touch is remembered; that candle or a subsequent completed candle can recover beyond the frozen trigger. Each phase expires when ten subsequent bars have elapsed: from the break while awaiting first touch, from first touch while awaiting recovery, and from confirmation once recovered. Repeated touches never extend the timer. A completed close through the far zone edge invalidates immediately. A confirmed watch pauses when its close no longer holds beyond the trigger; recovery within the same confirmation phase does not reset its original confirmation timestamp or expiry.
+
+The technicals page shows the phase and remaining bar steps. These are elapsed bar deadlines, not guaranteed entry time or broker stop instructions. This rule revision has correctness tests but no demonstrated profitability advantage. Offline replay automatically uses the revised engine, so performance results should not be compared to old runs without identifying the rule version.
+
+New audit keys use zones-retest-v2; v1 records remain unchanged. Deploy backend and frontend together. The frontend blocks the combined signal if the backend reports saved v1 rules. Support/resistance labels and watch labels are restored on the chart; values outside the displayed price range remain in the legend, and Include watch levels & zones brings them onto the scale.

@@ -3,6 +3,7 @@ import GoldCandleChart from "../components/GoldCandleChart";
 import { analyseCandles, makeTradingPlan, TIMEFRAMES } from "../lib/technicalAnalysis";
 import { getGoldSession } from "../lib/goldSession";
 import SignalReview from "../components/SignalReview";
+import { RULE_VERSION } from "../lib/zoneConfirmation";
 
 const money = value => Number.isFinite(value) ? value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const stamp = value => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString() : "Not available";
@@ -22,9 +23,11 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
   const macroFresh = Boolean(score && lastSuccessAt && now - lastSuccessAt <= 90000 && !dashboardError);
   const calculated = analyseCandles(history[interval], interval, now);
   const audit = audits[interval];
-  const recorded = audit?.status === "saved" ? audit.analysis : null;
+  const versionMismatch = audit?.status === "saved" && audit.ruleVersion !== RULE_VERSION;
+  const recorded = audit?.status === "saved" && !versionMismatch ? audit.analysis : null;
   const analysis = recorded ? { ...recorded, stale: now / 1000 - (recorded.lastTime + TIMEFRAMES[interval].seconds) > Math.max(TIMEFRAMES[interval].seconds * 2, 900) } : calculated;
-  const plan = makeTradingPlan(macro, analysis, { isOpen: session.isOpen, macroFresh });
+  const calculatedPlan = makeTradingPlan(macro, analysis, { isOpen: session.isOpen, macroFresh });
+  const plan = versionMismatch ? { ...calculatedPlan, signal: "Wait", reason: "The backend still has the previous retest rules. Wait for both deployments to finish before using the combined signal." } : calculatedPlan;
   const macroTone = macro === "Bearish" ? "down" : macro === "Bullish" ? "up" : "neutral";
   const directionText = macro === "Bearish" ? "Background pressure favours lower prices."
     : macro === "Bullish" ? "Background conditions favour higher prices." : "The macro picture does not provide a clear directional bias.";
@@ -62,12 +65,12 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <div className="timeframe-tabs" aria-label="Analysis timeframe">{Object.entries(TIMEFRAMES).map(([key, value]) => <button key={key} aria-pressed={interval === key} onClick={() => setInterval(key)}>{value.label}</button>)}</div>
         <p className="technical-confirmation"><strong>Technical confirmation:</strong> {analysis.stale ? "Delayed data — historical confirmation only" : analysis.confirmation === "None" ? "Not confirmed" : analysis.confirmation} · independent of macro bias</p>
         <p className="technical-confirmation"><strong>{plan.signal === "Wait" ? "Why WAIT?" : "Why this watch?"}</strong> {plan.reason}</p>
-        <p className="analysis-method">Selected timeframe: {TIMEFRAMES[interval].label}. The retest must touch the zone and close beyond its trigger in the same later completed candle. The current setup expires at the tenth subsequent candle from the break, even if it confirmed late. {interval === "5min" ? "That limit is 50 minutes of consecutive five-minute bars." : interval === "1h" ? "That limit is 10 hourly bars." : "That limit is 10 daily bars."} Session gaps can extend elapsed clock time. The zone boundary is a setup invalidation level, not a recommended broker stop loss.</p>
-        {analysis.setup && <p className="analysis-method">Break candle opened: {stamp(analysis.setup.breakTime * 1000)} · Retest confirmation: {analysis.setup.confirmedAt ? `candle closed ${stamp((analysis.setup.confirmedAt + TIMEFRAMES[interval].seconds) * 1000)}` : "Still waiting"}. All times shown in your local timezone.</p>}
+        <p className="analysis-method">Selected timeframe: {TIMEFRAMES[interval].label}. A retest can develop across several completed candles. There are separate limits of 10 bars to first touch, 10 bars from that touch to recovery, and 10 bars from confirmation. Repeated touches do not reset the clock. A close through the far zone edge still invalidates the setup; the zone boundary is not a recommended broker stop loss.</p>
+        {analysis.setup && <div className="technical-confirmation"><strong>{analysis.state}</strong> · {analysis.setup.barsRemaining} completed-bar step(s) until this phase expires.<br />Break candle opened: {stamp(analysis.setup.breakTime * 1000)}<br />First retest touch: {analysis.setup.touchedAt ? stamp((analysis.setup.touchedAt + TIMEFRAMES[interval].seconds) * 1000) : "Still waiting"}<br />Confirmation: {analysis.setup.confirmedAt ? stamp((analysis.setup.confirmedAt + TIMEFRAMES[interval].seconds) * 1000) : "Not confirmed"}<br /><small>Local times. The countdown is not a guaranteed entry window; invalidation can happen on the next completed candle.</small></div>}
         {analysis.ready && !recorded && <p className="analysis-method">Provisional calculation · no verified saved decision is available for this response.</p>}
         <div className="zone-readout">{analysis.zones.map(zone => <span key={zone.label} style={{ color: zone.color }}>{zone.label}: {money(zone.low)}–{money(zone.high)}</span>)}</div>
         <div className="analysis-metrics"><div><span>Last completed close</span><strong>{money(analysis.close)}</strong></div><div><span>Window momentum</span><strong>{Number.isFinite(analysis.move) ? `${analysis.move > 0 ? "+" : ""}${analysis.move.toFixed(3)}%` : "—"}</strong></div><div><span>Support lower edge</span><strong>{money(analysis.support)}</strong></div><div><span>Resistance upper edge</span><strong>{money(analysis.resistance)}</strong></div></div>
-        <p className="analysis-method">Zones use the previous 20 completed candles’ high and low, with bands based on a quarter of their average range (minimum 0.05% of price, capped to prevent overlap). A completed close must clear the outer edge by more than 0.10%. Zones and trigger levels freeze at the break. A later candle must touch the zone and close beyond the same trigger to confirm. Setups expire after 10 subsequent candles or invalidate on a close through the opposite zone edge. Forming candles never confirm.</p>
+        <p className="analysis-method">Zones use the previous 20 completed candles’ high and low, with bands based on a quarter of their average range (minimum 0.05% of price, capped to prevent overlap). A completed close must clear the outer edge by more than 0.10%. Zones and triggers freeze at the break. After a later candle touches the zone, that candle or a subsequent candle can confirm by closing beyond the same trigger. A confirmed watch pauses if a completed close falls back inside the trigger. Forming candles never confirm. These revised timing rules have not been validated for profitability.</p>
         {analysis.lastTime && <p className="analysis-method">Last analysed candle opened: {new Date(analysis.lastTime * 1000).toUTCString()}</p>}
       </section>
       <section className="terminal-card trading-plan">

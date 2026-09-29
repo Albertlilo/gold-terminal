@@ -263,13 +263,14 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
           })}
           {bands.filter(zone => zone.high >= min && zone.low <= max).map(zone => <g key={zone.label}>
             <rect x="8" y={y(Math.min(max, zone.high))} width={plotWidth} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={zone.color} fillOpacity="0.12" stroke={zone.color} strokeOpacity="0.4" />
+            <text x="12" y={Math.min(bottom - 5, y(Math.min(max, zone.high)) + 13)} fill={zone.color} stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize={width < 420 ? "10" : "12"}>{zone.label}</text>
           </g>)}
           {visible.map((candle, index) => {
             const color = candle.close >= candle.open ? "#70d69c" : "#ef7b7b";
             const body = Math.max(0.7, step * 0.7);
             return <g key={candle.time}><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} stroke={color} /><rect x={x(index) - body / 2} y={Math.min(y(candle.open), y(candle.close))} width={body} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))} fill={color} /></g>;
           })}
-          {levels.filter(level => level.price >= min && level.price <= max).map(level => <line key={level.label} x1="8" x2={plotWidth + 8} y1={y(level.price)} y2={y(level.price)} stroke={level.color} strokeDasharray="6 5" />)}
+          {levels.filter(level => level.price >= min && level.price <= max).map(level => <g key={level.label}><line x1="8" x2={plotWidth + 8} y1={y(level.price)} y2={y(level.price)} stroke={level.color} strokeDasharray="6 5" /><text x="12" y={Math.max(14, y(level.price) - 5)} fill={level.color} stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize={width < 420 ? "10" : "12"}>{level.label}: {level.price.toFixed(2)}</text></g>)}
           {visible.length > 0 && <g>
             <line x1="8" x2={plotWidth + 8} y1={y(visible.at(-1).close)} y2={y(visible.at(-1).close)} stroke="#b6a164" strokeDasharray="2 4" />
             <rect x={plotWidth + 10} y={y(visible.at(-1).close) - 10} width={width - plotWidth - 12} height="20" rx="3" fill="#665322" />

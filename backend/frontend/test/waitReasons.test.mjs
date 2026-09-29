@@ -9,7 +9,7 @@ test('WAIT explains a confirmed technical signal blocked by macro bias', () => {
   assert.match(plan.reason,/requires Bullish macro/);
 });
 test('WAIT distinguishes retest, expiry, invalidation and data/session blocks', () => {
-  for (const [state, pattern] of [['Breakout · awaiting retest',/both touched/],['Setup expired',/10-candle/],['Retest invalidated',/closed through/],['Between zones',/Crossing a price line alone/]]) {
+  for (const [state, pattern] of [['Breakout · awaiting retest',/not yet been touched/],['Pullback developing',/recovery close/],['Confirmation weakened',/watch is paused/],['Setup expired',/phase limit/],['Retest invalidated',/closed through/],['Between zones',/Crossing a price line alone/]]) {
     assert.match(makeTradingPlan('Bullish',{...analysis,state,confirmation:'None'},{isOpen:true}).reason,pattern);
   }
   assert.match(makeTradingPlan('Bullish',analysis,{isOpen:false}).reason,/Market closed/);

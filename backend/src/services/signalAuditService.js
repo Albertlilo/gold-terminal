@@ -1,5 +1,5 @@
 const { createHash } = require("node:crypto");
-const RULE_VERSION = "zones-retest-v1";
+const RULE_VERSION = "zones-retest-v2";
 
 function createSignalAuditService({ analyse, plan, store, now = Date.now, macro = () => null, session }) {
   const cache = new Map();

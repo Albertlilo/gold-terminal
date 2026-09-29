@@ -37,8 +37,10 @@ export function makeTradingPlan(macro, analysis, { isOpen, macroFresh = true }) 
     : analysis.stale ? "Candle data is delayed. Wait for a fresh completed candle."
     : signal !== "Wait" ? "Macro bias and the break/retest confirmation agree. A watch setup is not an executed trade."
     : analysis.state === "Retest invalidated" ? "The setup failed: a completed candle closed through the far edge of the retested zone. Wait for a new break and retest."
-    : analysis.state === "Setup expired" ? "The setup reached its 10-candle limit from the original break. A new break and retest is required."
-    : analysis.state?.includes("awaiting retest") ? "A break is recorded, but no later completed candle has both touched the zone and closed beyond the trigger."
+    : analysis.state === "Setup expired" ? "The setup reached its phase limit: 10 candles to touch, 10 candles from the first touch to recover, or 10 candles after confirmation. A new break and retest is required."
+    : analysis.state === "Pullback developing" ? "The retest has touched the zone. Wait for a completed recovery close beyond the trigger; a zone touch alone does not confirm a watch."
+    : analysis.state === "Confirmation weakened" ? "The latest completed close no longer holds beyond the trigger. The watch is paused; the far zone edge still defines invalidation."
+    : analysis.state?.includes("awaiting retest") ? "A break is recorded, but the zone has not yet been touched by a later completed candle. Do not confuse the breakout with retest confirmation."
     : analysis.confirmation === "Buy Watch" && !bullish ? `Technical Buy Watch is confirmed, but macro bias is ${macro || "Unavailable"}. The combined signal requires Bullish macro.`
     : analysis.confirmation === "Sell Watch" && !bearish ? `Technical Sell Watch is confirmed, but macro bias is ${macro || "Unavailable"}. The combined signal requires Bearish macro.`
     : !bearish && !bullish ? `Macro bias is ${macro || "Unavailable"}; there is no directional macro agreement or confirmed matching retest.`
