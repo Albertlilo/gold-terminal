@@ -1,5 +1,6 @@
+import { useState } from "react";
 import PageHeader from "../components/PageHeader";
-import GoldPriceChart from "../components/GoldPriceChart";
+import GoldCandleChart from "../components/GoldCandleChart";
 
 function MarketsPage({
   dashboardData,
@@ -8,13 +9,13 @@ function MarketsPage({
   goldMovement,
   goldChange,
   goldChangePercent,
-  goldHistory,
   realYield,
   dollarIndex,
   sessionHigh,
   sessionLow,
   sessionRange,
 }) {
+  const [interval, setInterval] = useState("1h");
   const score = dashboardData?.gold?.score;
 
   const twoYear =
@@ -180,9 +181,9 @@ function MarketsPage({
         </div>
       </section>
 
-      {/* LIVE CHART */}
+      {/* SAVED CANDLE HISTORY */}
 
-      <GoldPriceChart history={goldHistory} />
+      <GoldCandleChart interval={interval} onIntervalChange={setInterval} />
 
       {/* CROSS-MARKET CONFIRMATION */}
 
