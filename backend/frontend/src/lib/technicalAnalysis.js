@@ -36,7 +36,13 @@ export function makeTradingPlan(macro, analysis, { isOpen, macroFresh = true }) 
     : !analysis.ready ? "At least 21 completed candles are needed: 20 to establish zones, then a potential break."
     : analysis.stale ? "Candle data is delayed. Wait for a fresh completed candle."
     : signal !== "Wait" ? "Macro bias and the break/retest confirmation agree. A watch setup is not an executed trade."
-    : "No aligned confirmation yet. Be patient and wait for confirmation.";
+    : analysis.state === "Retest invalidated" ? "The setup failed: a completed candle closed through the far edge of the retested zone. Wait for a new break and retest."
+    : analysis.state === "Setup expired" ? "The setup reached its 10-candle limit from the original break. A new break and retest is required."
+    : analysis.state?.includes("awaiting retest") ? "A break is recorded, but no later completed candle has both touched the zone and closed beyond the trigger."
+    : analysis.confirmation === "Buy Watch" && !bullish ? `Technical Buy Watch is confirmed, but macro bias is ${macro || "Unavailable"}. The combined signal requires Bullish macro.`
+    : analysis.confirmation === "Sell Watch" && !bearish ? `Technical Sell Watch is confirmed, but macro bias is ${macro || "Unavailable"}. The combined signal requires Bearish macro.`
+    : !bearish && !bullish ? `Macro bias is ${macro || "Unavailable"}; there is no directional macro agreement or confirmed matching retest.`
+    : "No completed break-and-retest confirmation on this timeframe. Crossing a price line alone does not confirm a setup.";
   return { signal, reason,
     preferred: bearish ? "Sell setups only" : bullish ? "Buy setups only" : "No directional preference",
     confirmation: bearish ? "Support break + failed retest" : bullish ? "Resistance breakout + successful retest" : "Wait for a directional macro bias",

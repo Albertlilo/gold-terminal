@@ -8,7 +8,7 @@ const money = value => Number.isFinite(value) ? value.toLocaleString("en-US", { 
 const stamp = value => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString() : "Not available";
 
 export default function TechnicalsPage({ dashboardData, currentTime, lastSuccessAt, dashboardError, goldPrice }) {
-  const [interval, setInterval] = useState("5min");
+  const [interval, setInterval] = useState("1h");
   const [history, setHistory] = useState({});
   const [showWatchLevels, setShowWatchLevels] = useState(true);
   const [showZones, setShowZones] = useState(true);
@@ -34,7 +34,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <div><span className="gold-bar-icon" aria-hidden="true">▰</span><div><strong><span>Gold</span> Terminal</strong><small>DATA · INSIGHTS · DISCIPLINE</small></div></div>
         <div className="terminal-symbol"><span>XAUUSD</span><time dateTime={currentTime.toISOString()}>{currentTime.toLocaleString()}</time></div>
       </header>
-      <div className="terminal-intro"><h1>Macro + Technical Signal</h1><p>Combine the bigger picture with completed-candle confirmation.</p></div>
+      <div className="terminal-intro"><h1>Macro + Technical Signal</h1><p>Analysis timeframe: <strong>{TIMEFRAMES[interval].label}</strong> · signals use completed candles.</p><p className="analysis-method">The price checks every 30 seconds; that does not create a new candle confirmation. WAIT is a status, not an order button.</p></div>
       <div className="terminal-live-price"><div><span>XAUUSD · {session.isOpen ? "Latest price" : "Last available price"}</span><strong>{goldPrice ?? "—"}<small>USD / oz</small></strong></div><p>{!session.isOpen ? "Market closed · price held" : dashboardError || !Number.isFinite(dashboardData?.market?.xauusd?.price) || dashboardData?.market?.xauusd?.stale ? "Waiting for a fresh quote" : "Live price · checked every 30 seconds"}</p></div>
       <div className={`session-notice ${session.isOpen ? "" : "session-closed"}`} role="status">
         <span className="session-dot" /> <strong>{session.label}</strong>
@@ -61,6 +61,9 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <div className="terminal-panel-title"><h2>Timeframe Analysis</h2><span>COMPLETED CANDLES ONLY</span></div>
         <div className="timeframe-tabs" aria-label="Analysis timeframe">{Object.entries(TIMEFRAMES).map(([key, value]) => <button key={key} aria-pressed={interval === key} onClick={() => setInterval(key)}>{value.label}</button>)}</div>
         <p className="technical-confirmation"><strong>Technical confirmation:</strong> {analysis.stale ? "Delayed data — historical confirmation only" : analysis.confirmation === "None" ? "Not confirmed" : analysis.confirmation} · independent of macro bias</p>
+        <p className="technical-confirmation"><strong>{plan.signal === "Wait" ? "Why WAIT?" : "Why this watch?"}</strong> {plan.reason}</p>
+        <p className="analysis-method">Selected timeframe: {TIMEFRAMES[interval].label}. The retest must touch the zone and close beyond its trigger in the same later completed candle. The current setup expires at the tenth subsequent candle from the break, even if it confirmed late. {interval === "5min" ? "That limit is 50 minutes of consecutive five-minute bars." : interval === "1h" ? "That limit is 10 hourly bars." : "That limit is 10 daily bars."} Session gaps can extend elapsed clock time. The zone boundary is a setup invalidation level, not a recommended broker stop loss.</p>
+        {analysis.setup && <p className="analysis-method">Break candle opened: {stamp(analysis.setup.breakTime * 1000)} · Retest confirmation: {analysis.setup.confirmedAt ? `candle closed ${stamp((analysis.setup.confirmedAt + TIMEFRAMES[interval].seconds) * 1000)}` : "Still waiting"}. All times shown in your local timezone.</p>}
         {analysis.ready && !recorded && <p className="analysis-method">Provisional calculation · no verified saved decision is available for this response.</p>}
         <div className="zone-readout">{analysis.zones.map(zone => <span key={zone.label} style={{ color: zone.color }}>{zone.label}: {money(zone.low)}–{money(zone.high)}</span>)}</div>
         <div className="analysis-metrics"><div><span>Last completed close</span><strong>{money(analysis.close)}</strong></div><div><span>Window momentum</span><strong>{Number.isFinite(analysis.move) ? `${analysis.move > 0 ? "+" : ""}${analysis.move.toFixed(3)}%` : "—"}</strong></div><div><span>Support lower edge</span><strong>{money(analysis.support)}</strong></div><div><span>Resistance upper edge</span><strong>{money(analysis.resistance)}</strong></div></div>

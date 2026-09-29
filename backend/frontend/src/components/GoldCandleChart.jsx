@@ -75,19 +75,19 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
             ? "Showing saved candles while newer prices refresh in the background."
             : data.candles.length ? "History saved in Atlas. Updates checked every 5 minutes."
               : "No candles available for this timeframe."));
-          if (open && data.refreshing && followups < 10) {
+          if (open && data.refreshing && followups < 2) {
             followups++;
-            retryTimer = window.setTimeout(() => refresh(), 3000);
+            retryTimer = window.setTimeout(() => refresh(), 15000);
           } else { followups = 0; }
         }
       } catch (error) {
         if (active && error.name !== "AbortError") {
           failures++;
-          const willRetry = getGoldSession().isOpen && failures <= 3;
+          const willRetry = getGoldSession().isOpen && failures <= 2;
           setStatus(error.message + (willRetry
-            ? " Retrying automatically in 15 seconds. Any candles already loaded remain visible."
+            ? " History connection retry in 60 seconds. Any candles already loaded remain visible."
             : " Use Retry history to try again. Any candles already loaded remain visible."));
-          if (willRetry) retryTimer = window.setTimeout(() => refresh(), 15000);
+          if (willRetry) retryTimer = window.setTimeout(() => refresh(), 60000);
         }
       } finally {
         busy = false;
