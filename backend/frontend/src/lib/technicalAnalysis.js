@@ -26,28 +26,23 @@ export function analyseCandles(rows, interval, now) {
   };
 }
 
-export function makeTradingPlan(macro, analysis, { isOpen, macroFresh = true }) {
-  const bearish = macro === "Bearish", bullish = macro === "Bullish";
-  const signal = !isOpen || !macroFresh || !analysis.ready || analysis.stale ? "Wait"
-    : bearish && analysis.confirmation === "Sell Watch" ? "Sell Watch"
-    : bullish && analysis.confirmation === "Buy Watch" ? "Buy Watch" : "Wait";
+export function makeTechnicalPlan(analysis, { isOpen }) {
+  const signal = !isOpen || !analysis.ready || analysis.stale ? "Wait"
+    : ["Buy Watch", "Sell Watch"].includes(analysis.confirmation) ? analysis.confirmation : "Wait";
+  const direction = analysis.setup?.direction;
   const reason = !isOpen ? "Market closed. Wait for the next session."
-    : !macroFresh ? "Macro data is delayed or unavailable. Wait for an update."
     : !analysis.ready ? "At least 21 completed candles are needed: 20 to establish zones, then a potential break."
     : analysis.stale ? "Candle data is delayed. Wait for a fresh completed candle."
-    : signal !== "Wait" ? "Macro bias and the break/retest confirmation agree. A watch setup is not an executed trade."
+    : signal !== "Wait" ? "The completed-candle break and retest conditions are confirmed. A watch setup is not an executed trade."
     : analysis.state === "Retest invalidated" ? "The setup failed: a completed candle closed through the far edge of the retested zone. Wait for a new break and retest."
     : analysis.state === "Setup expired" ? "The setup reached its phase limit: 10 candles to touch, 10 candles from the first touch to recover, or 10 candles after confirmation. A new break and retest is required."
     : analysis.state === "Pullback developing" ? "The retest has touched the zone. Wait for a completed recovery close beyond the trigger; a zone touch alone does not confirm a watch."
     : analysis.state === "Confirmation weakened" ? "The latest completed close no longer holds beyond the trigger. The watch is paused; the far zone edge still defines invalidation."
     : analysis.state?.includes("awaiting retest") ? "A break is recorded, but the zone has not yet been touched by a later completed candle. Do not confuse the breakout with retest confirmation."
-    : analysis.confirmation === "Buy Watch" && !bullish ? `Technical Buy Watch is confirmed, but macro bias is ${macro || "Unavailable"}. The combined signal requires Bullish macro.`
-    : analysis.confirmation === "Sell Watch" && !bearish ? `Technical Sell Watch is confirmed, but macro bias is ${macro || "Unavailable"}. The combined signal requires Bearish macro.`
-    : !bearish && !bullish ? `Macro bias is ${macro || "Unavailable"}; there is no directional macro agreement or confirmed matching retest.`
     : "No completed break-and-retest confirmation on this timeframe. Crossing a price line alone does not confirm a setup.";
   return { signal, reason,
-    preferred: bearish ? "Sell setups only" : bullish ? "Buy setups only" : "No directional preference",
-    confirmation: bearish ? "Support break + failed retest" : bullish ? "Resistance breakout + successful retest" : "Wait for a directional macro bias",
-    invalidation: bearish ? "Completed close above the support zone" : bullish ? "Completed close below the resistance zone" : "No active directional setup",
+    preferred: signal === "Sell Watch" ? "Sell setup confirmed" : signal === "Buy Watch" ? "Buy setup confirmed" : direction === "sell" ? "Sell setup developing" : direction === "buy" ? "Buy setup developing" : "No active technical setup",
+    confirmation: direction === "sell" ? "Support break + failed retest" : direction === "buy" ? "Resistance breakout + successful retest" : "Wait for a break and retest",
+    invalidation: direction === "sell" ? "Completed close above the support zone" : direction === "buy" ? "Completed close below the resistance zone" : "No active technical setup",
   };
 }

@@ -44,7 +44,7 @@ function MarketsPage({
     <>
       <PageHeader
         title="Markets"
-        subtitle="Live price action and cross-market confirmation"
+        subtitle="Gold price history and separate macro indicators"
         currentTime={currentTime}
       />
 
@@ -191,14 +191,14 @@ function MarketsPage({
         <div className="markets-section-heading">
           <div>
             <span className="section-label">
-              Cross-Market Signals
+              Macro Indicators
             </span>
 
-            <h2>Gold Confirmation Matrix</h2>
+            <h2>Macro Indicator Overview</h2>
           </div>
 
           <span className="markets-section-note">
-            Live macro confirmation
+            Macro data · separate from technical signals
           </span>
         </div>
 
@@ -340,11 +340,7 @@ function MarketsPage({
           </h3>
 
           <p>
-            {buildMarketInsight(
-              score,
-              goldMovement,
-              goldChange
-            )}
+            {buildMarketInsight(score)}
           </p>
         </div>
       </section>
@@ -429,31 +425,9 @@ function getBiasClass(bias) {
   return "markets-bias neutral-score";
 }
 
-function buildMarketInsight(
-  score,
-  goldMovement,
-  goldChange
-) {
-  if (!score) {
-    return "Waiting for the Gold Score engine and live market data.";
-  }
-
-  const direction =
-    goldChange > 0
-      ? "rising"
-      : goldChange < 0
-        ? "falling"
-        : "flat";
-
-  if (score.bias === "Bullish") {
-    return `The macro model is bullish while XAUUSD is currently ${direction}. This helps show whether live price action is confirming the underlying bullish macro setup.`;
-  }
-
-  if (score.bias === "Bearish") {
-    return `The macro model is bearish while XAUUSD is currently ${direction}. Watch whether price action continues to confirm the macro pressure or begins to diverge from it.`;
-  }
-
-  return `The Gold Score is currently balanced while XAUUSD is ${direction}. With macro forces offsetting each other, live price action and cross-market confirmation become especially important.`;
+function buildMarketInsight(score) {
+  return score ? `Macro bias: ${score.bias}. This macro reading is independent of the technical chart and does not confirm or block technical watches.`
+    : "Macro data is unavailable. Technical analysis operates independently.";
 }
 
 export default MarketsPage;

@@ -8,9 +8,9 @@ const { createSignalAuditService } = require("../services/signalAuditService");
 let auditService;
 async function auditHistory(interval, candles) {
   if (!auditService) {
-    const { analyseCandles, makeTradingPlan } = await import("../../frontend/src/lib/technicalAnalysis.js");
-    auditService = createSignalAuditService({ analyse: analyseCandles, plan: makeTradingPlan,
-      store: require("../services/signalAuditStore"), macro: require("../services/macroSnapshot").current,
+    const { analyseCandles, makeTechnicalPlan } = await import("../../frontend/src/lib/technicalAnalysis.js");
+    auditService = createSignalAuditService({ analyse: analyseCandles, plan: makeTechnicalPlan,
+      store: require("../services/signalAuditStore"),
       session: getGoldSession });
   }
   return auditService(interval, candles);

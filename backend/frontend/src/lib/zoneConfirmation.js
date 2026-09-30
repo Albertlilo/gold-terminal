@@ -2,7 +2,7 @@ export const ZONE_LOOKBACK = 20;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v2";
+export const RULE_VERSION = "zones-retest-v3-technical-only";
 export const NOISE_PERCENT = 0.1;
 
 export function buildZones(previous) {

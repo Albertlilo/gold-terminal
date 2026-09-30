@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyseCandles, makeTradingPlan } from '../src/lib/technicalAnalysis.js';
+import { analyseCandles, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
 import { getGoldSession } from '../src/lib/goldSession.js';
 const row = (i, close=100, low=99, high=101, seconds=300) => ({time:(i+1)*seconds,open:close,close,low,high});
 const base = (seconds=300) => Array.from({length:20},(_,i)=>row(i,100,99,101,seconds));
@@ -9,19 +9,19 @@ const analyse = (rows, interval='5min', seconds=300) => analyseCandles(rows,inte
 test('price breakout alone, including a same-candle touch, cannot trigger Buy Watch',()=>{
   const a=analyse([...base(),row(20,102,100,103)]);
   assert.equal(a.state,'Breakout · awaiting retest');assert.equal(a.confirmation,'None');
-  assert.equal(makeTradingPlan('Bullish',a,{isOpen:true}).signal,'Wait');
+  assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Wait');
 });
 test('successful later resistance retest confirms Buy Watch',()=>{
   const a=analyse([...base(),row(20,102,100,103),row(21,101.5,100.9,102)]);
   assert.equal(a.confirmation,'Buy Watch');assert.equal(a.state,'Successful retest');
-  assert.equal(makeTradingPlan('Bullish',a,{isOpen:true}).signal,'Buy Watch');
+  assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Buy Watch');
 });
 test('support break requires a failed retest before Sell Watch',()=>{
   const rows=[...base(),row(20,98,97,100)];
   assert.equal(analyse(rows).confirmation,'None');
   const a=analyse([...rows,row(21,98.5,98,99.2)]);
   assert.equal(a.confirmation,'Sell Watch');assert.equal(a.state,'Failed support retest');
-  assert.equal(makeTradingPlan('Bearish',a,{isOpen:true}).signal,'Sell Watch');
+  assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Sell Watch');
 });
 test('retest without a close past trigger remains unconfirmed',()=>{
   const a=analyse([...base(),row(20,102,100,103),row(21,101.05,100.9,102)]);
@@ -52,13 +52,13 @@ test('forming and future candles do not confirm, invalid data cannot signal',()=
   assert.equal(analyseCandles([...rows,{...row(22),close:NaN}],'5min',99999999).ready,false);
   assert.equal(analyse(base()).ready,false);
 });
-test('macro filter remains independent of technical confirmation',()=>{
+test('technical watch remains independent of macro context',()=>{
   const a=analyse([...base(),row(20,98,97,100),row(21,98.5,98,99.2)]);
-  for(const macro of ['Bullish','High Conflict','Unavailable']) assert.equal(makeTradingPlan(macro,a,{isOpen:true}).signal,'Wait');
+  for(const macro of ['Bullish','Bearish','High Conflict','Unavailable']) assert.equal(makeTechnicalPlan(a,{isOpen:true,macro,macroFresh:false}).signal,'Sell Watch');
   assert.equal(a.confirmation,'Sell Watch');
-  assert.equal(makeTradingPlan('Bearish',a,{isOpen:false}).signal,'Wait');
-  assert.equal(makeTradingPlan('Bearish',a,{isOpen:true,macroFresh:false}).signal,'Wait');
-  assert.equal(makeTradingPlan('Bearish',{...a,stale:true},{isOpen:true}).signal,'Wait');
+  assert.equal(makeTechnicalPlan(a,{isOpen:false}).signal,'Wait');
+  assert.equal(makeTechnicalPlan(a,{isOpen:true,macroFresh:false}).signal,'Sell Watch');
+  assert.equal(makeTechnicalPlan({...a,stale:true},{isOpen:true}).signal,'Wait');
 });
 test('hourly and daily bars each require their own completed break and retest',()=>{
   for(const [interval,s] of [['1h',3600],['1day',86400]]){

@@ -95,3 +95,9 @@ Retests can now span multiple completed candles. Zone geometry and the 0.10% tri
 The technicals page shows the phase and remaining bar steps. These are elapsed bar deadlines, not guaranteed entry time or broker stop instructions. This rule revision has correctness tests but no demonstrated profitability advantage. Offline replay automatically uses the revised engine, so performance results should not be compared to old runs without identifying the rule version.
 
 New audit keys use zones-retest-v2; v1 records remain unchanged. Deploy backend and frontend together. The frontend blocks the combined signal if the backend reports saved v1 rules. Support/resistance labels and watch labels are restored on the chart; values outside the displayed price range remain in the legend, and Include watch levels & zones brings them onto the scale.
+
+## Current policy: macro and technical analysis must remain separate
+
+This policy supersedes earlier combined-signal descriptions above. Do not reintroduce macro filtering, a combined signal, or macro-derived buy/sell preferences in technical analysis. Technical signals depend only on completed price candles, their freshness and the trading-session gate. Macro scores remain available separately on Macro/Gold Score and the separate macro sections of Markets.
+
+The technical-only planner accepts no macro input. Technical audit records use zones-retest-v3-technical-only and store technicalSignal, without capturing macro or creating combinedSignal. Existing older audit records are retained as historical records; their old combined values are no longer displayed as active signals. Retest timing and price thresholds are unchanged. Both frontend and backend must deploy this change.

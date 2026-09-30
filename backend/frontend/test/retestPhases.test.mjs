@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyseCandles, makeTradingPlan } from '../src/lib/technicalAnalysis.js';
+import { analyseCandles, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
 const row=(i,close=100,low=99,high=101)=>({time:(i+1)*300,open:close,high,low,close});
 const base=()=>Array.from({length:20},(_,i)=>row(i));
 const analyse=rows=>analyseCandles(rows,'5min',(rows.at(-1).time+300)*1000);
@@ -35,9 +35,9 @@ test('repeated touches cannot extend retest forever and structural invalidation 
   assert.equal(analyse(rows).state,'Setup expired');
   assert.equal(analyse([...base(),row(20,102,100,103),row(21,100.8,100.7,101),row(22,100.4,100,101)]).state,'Retest invalidated');
 });
-test('loss of recovery pauses a confirmed watch and macro still gates confirmation',()=>{
+test('loss of recovery pauses a confirmed watch without any macro filter',()=>{
   const rows=[...base(),row(20,102,100,103),row(21,101.5,100.9,102)];
-  assert.equal(makeTradingPlan('Bearish',analyse(rows),{isOpen:true}).signal,'Wait');
+  assert.equal(makeTechnicalPlan(analyse(rows),{isOpen:true}).signal,'Buy Watch');
   const weakened=analyse([...rows,row(22,100.8,100.7,101)]);
   assert.equal(weakened.state,'Confirmation weakened'); assert.equal(weakened.confirmation,'None');
 });
