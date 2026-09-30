@@ -4,12 +4,16 @@ import { analyseCandles, makeTechnicalPlan, TIMEFRAMES } from "../lib/technicalA
 import { getGoldSession } from "../lib/goldSession";
 import SignalReview from "../components/SignalReview";
 import { RULE_VERSION } from "../lib/zoneConfirmation";
+import PushNotifications from "../components/PushNotifications";
 
 const money = value => Number.isFinite(value) ? value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const stamp = value => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString() : "Not available";
 
 export default function TechnicalsPage({ dashboardData, currentTime, lastSuccessAt, dashboardError, goldPrice }) {
-  const [interval, setInterval] = useState("1h");
+  const [interval, setInterval] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get('interval');
+    return Object.hasOwn(TIMEFRAMES, requested) ? requested : '1h';
+  });
   const [history, setHistory] = useState({});
   const [showWatchLevels, setShowWatchLevels] = useState(true);
   const [showZones, setShowZones] = useState(true);
@@ -71,6 +75,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <dl><div><dt>Setup Direction</dt><dd>{plan.preferred}</dd></div><div><dt>Confirmation</dt><dd>{plan.confirmation}</dd></div><div><dt>Invalidation</dt><dd>{plan.invalidation}</dd></div><div><dt>Current Decision</dt><dd><strong className="decision-pill">{plan.signal.toUpperCase()}</strong></dd></div></dl>
         <p className="analysis-method">Buy Watch requires a breakout and successful retest; Sell Watch requires a support break and failed retest. These are watch conditions, not automatic entries or stop-loss instructions.</p>
       </section>
+      <PushNotifications now={now} />
       <SignalReview key={interval} audit={audit} rows={history[interval]} interval={interval} now={now} />
       <section className="terminal-card upcoming-coverage" aria-labelledby="upcoming-coverage-title">
         <div className="terminal-panel-title"><h2 id="upcoming-coverage-title">News &amp; Market Context</h2><span>COMING NEXT</span></div>
@@ -80,7 +85,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
           <article><h3>DXY coverage</h3><p>Dedicated US Dollar Index prices and direction alongside gold. Separate from the broad dollar macro indicator.</p></article>
           <article><h3>Geopolitical news</h3><p>Time-stamped headlines with source links for developing events that may affect gold.</p></article>
         </div>
-        <p className="analysis-method">Planned coverage, pending a suitable data provider. No alerts are being sent. News coverage will remain separate from technical signals.</p>
+        <p className="analysis-method">Planned coverage, pending a suitable data provider. No news alerts are being sent. News coverage will remain separate from technical signals.</p>
       </section>
       <footer className="terminal-card terminal-footer"><span aria-hidden="true">◇</span><em>Technical signals use price action only.</em><small>MACRO IS SEPARATE</small></footer>
       <p className="session-footnote">Session estimate: Sunday 18:00–Friday 17:00, with a daily 17:00–18:00 break in New York. Daylight saving is applied automatically. Broker and holiday closures may differ.</p>

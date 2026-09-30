@@ -29,7 +29,7 @@ function normalizeCandles(values) {
 // Dependencies are injected so persistence, retries and paging can be tested offline.
 function createHistoryService({ store, fetchCandles, now = Date.now, canRefresh = () => true }) {
   const requests = new Map();
-  return async function getHistory(interval = "5min", before) {
+  return async function getHistory(interval = "5min", before, { waitForRefresh = false } = {}) {
     if (!INTERVALS.includes(interval)
       || (before !== undefined && (!Number.isSafeInteger(before) || before <= 0 || before > now() / 1000))) {
       const error = new Error("Choose 5min, 1h or 1day and a valid history timestamp.");
@@ -71,7 +71,7 @@ function createHistoryService({ store, fetchCandles, now = Date.now, canRefresh 
     }
     // Return saved data immediately; the next request can pick up refreshed data.
     // Only first-time/empty pages need to wait for the provider.
-    if (!candles.length && state) {
+    if ((!candles.length || waitForRefresh) && state) {
       await state.promise;
       candles = await store.read(interval, before, PAGE_SIZE);
     }

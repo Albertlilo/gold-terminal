@@ -3,6 +3,17 @@ const assert = require('node:assert/strict');
 const {createHistoryService} = require('../src/services/candleHistoryService');
 const candle = {time:100,open:100,high:102,low:98,close:100};
 
+test('background checker waits for the shared chart refresh and reads the saved result', async () => {
+  let release, calls=0, saved=[candle];
+  const service=createHistoryService({store:{read:async()=>saved,save:async(_,rows)=>{saved=rows;}},
+    fetchCandles:()=>{calls++;return new Promise(resolve=>{release=resolve;});}});
+  assert.equal((await service('1h')).refreshing,true);
+  const pending=service('1h',undefined,{waitForRefresh:true});
+  release([{...candle,close:101}]);
+  const result=await pending;
+  assert.equal(result.refreshing,false);assert.equal(result.candles[0].close,101);assert.equal(calls,1);
+});
+
 test('saved candles return before a stalled provider completes', async () => {
   let release;
   let saved = [candle];

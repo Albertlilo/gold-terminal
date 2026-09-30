@@ -4,7 +4,7 @@ const express = require("express");
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '16kb' }));
 const fredRoutes = require("./routes/fredRoutes");
 
 require("dotenv").config();
@@ -28,6 +28,10 @@ app.use("/api/users", usersRouters);
 
 app.use("/api/fred", fredRoutes);
 app.use("/api/market", require("./routes/marketRoutes"));
+app.use("/api/push", require("./routes/pushRoutes").createPushRouter());
+
+const stopPushScheduler = require("./services/pushRuntime").startScheduler();
+process.once('SIGTERM', stopPushScheduler);
 
 app.listen(process.env.PORT, () => {
     console.log(`Server is running on port ${process.env.PORT}`);

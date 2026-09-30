@@ -1,6 +1,8 @@
 let connection;
 let auditCollection;
 let auditIndex;
+let database;
+const pushIndexes = new Map();
 
 async function getCollection() {
   if (!process.env.MONGODB_URI) throw new Error("Atlas configuration missing");
@@ -13,6 +15,7 @@ async function getCollection() {
       });
       try {
         await client.connect();
+        database = client.db(process.env.MONGODB_DATABASE || "gold_terminal");
         const collection = client.db(process.env.MONGODB_DATABASE || "gold_terminal").collection("candles");
         auditCollection = client.db(process.env.MONGODB_DATABASE || "gold_terminal").collection("signal_audit");
         await collection.createIndex({ symbol: 1, interval: 1, time: 1 }, { unique: true });
@@ -27,6 +30,17 @@ async function getCollection() {
 }
 
 module.exports = {
+  async getPushCollection(name) {
+    if (!["push_subscriptions", "push_deliveries", "push_state"].includes(name)) throw new Error("Invalid collection");
+    await getCollection();
+    const collection = database.collection(name);
+    if (!pushIndexes.has(name)) pushIndexes.set(name, (async () => {
+      if (name === "push_subscriptions") await collection.createIndex({ endpointHash: 1 }, { unique: true });
+      else await collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    })().catch(error => { pushIndexes.delete(name); throw error; }));
+    await pushIndexes.get(name);
+    return collection;
+  },
   async getAuditCollection() {
     await getCollection();
     if (!auditIndex) auditIndex = auditCollection.createIndex({ interval: 1, candleTime: -1 }).catch(error => { auditIndex = null; throw error; });

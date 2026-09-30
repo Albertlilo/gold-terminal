@@ -21,7 +21,7 @@ function App() {
   const [dashboardError, setDashboardError] = useState("");
   const [dashboardBusy, setDashboardBusy] = useState(false);
   const retryDashboard = useRef(() => {});
-  const [activePage, setActivePage] = useState("home");
+  const [activePage, setActivePage] = useState(() => new URLSearchParams(window.location.search).get('page') === 'technicals' ? 'technicals' : 'home');
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const previousGoldPrice = useRef(null);

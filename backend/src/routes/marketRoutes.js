@@ -65,3 +65,6 @@ router.get("/gold/history", async (req, res) => {
 });
 
 module.exports = router;
+// Shared by the background checker: same cache and request coalescing as charts.
+module.exports.getHistory = getHistory;
+module.exports.auditHistory = auditHistory;
