@@ -1,219 +1,53 @@
 import PageHeader from "../components/PageHeader";
 import DashboardSection from "../components/DashboardSection";
-import MetricCard from "../components/MetricCard";
 
-function MacroPage({ dashboardData, currentTime }) {
-  return (
-    <>
-      <PageHeader
-        title="Macro"
-        subtitle="US macroeconomic conditions"
-        currentTime={currentTime}
-      />
+const sections = [
+  ['Rates', 'Interest Rates', [['Fed Funds', 'rates.fedFunds'], ['2Y Treasury', 'rates.twoYear'], ['10Y Treasury', 'rates.tenYear'], ['10Y Real Yield', 'realYields.tenYearRealYield']]],
+  ['Inflation', 'Inflation Conditions', [['5Y Breakeven', 'inflation.fiveYearBreakeven'], ['10Y Breakeven', 'inflation.tenYearBreakeven'], ['Core PCE', 'inflation.corePce'], ['PPI · All commodities', 'inflation.ppi']]],
+  ['Labour', 'Labour Market', [['Unemployment', 'labour.unemploymentRate'], ['Nonfarm Payrolls', 'labour.nonfarmPayrolls'], ['ADP Employment', 'labour.adpEmployment'], ['Initial Claims', 'consumerHousing.initialClaims']]],
+  ['Growth', 'Economic Growth', [['Real GDP', 'growth.realGdp'], ['Industrial Production', 'growth.industrialProduction'], ['Retail Sales', 'growth.retailSales'], ['Consumer Sentiment', 'consumerHousing.consumerSentiment']]],
+  ['Liquidity', 'System Liquidity', [['M2 Money Supply', 'liquidity.m2MoneySupply'], ['Reverse Repo', 'liquidity.reverseRepo'], ['Treasury General Account', 'liquidity.treasuryGeneralAccount'], ['Housing Starts', 'consumerHousing.housingStarts']]],
+  ['Risk', 'Financial Conditions', [['VIX', 'risk.vix'], ['Financial Stress', 'risk.financialStress'], ['High-Yield Spread', 'risk.highYieldSpread'], ['Dollar', 'currency.dollarIndex']]]
+];
 
-      <DashboardSection label="Rates" title="Interest Rates">
-        <div className="card-grid">
-          <MetricCard
-            label="Fed Funds"
-            value={dashboardData?.rates?.fedFunds?.value ?? "--"}
-            description="Federal funds rate"
-          />
-
-          <MetricCard
-            label="2Y Treasury"
-            value={dashboardData?.rates?.twoYear?.value ?? "--"}
-            description="2-year Treasury yield"
-          />
-
-          <MetricCard
-            label="10Y Treasury"
-            value={dashboardData?.rates?.tenYear?.value ?? "--"}
-            description="10-year Treasury yield"
-          />
-
-          <MetricCard
-            label="10Y Real Yield"
-            value={
-              dashboardData?.realYields?.tenYearRealYield?.value ?? "--"
-            }
-            description="Inflation-adjusted yield"
-          />
-        </div>
-      </DashboardSection>
-
-      <DashboardSection label="Inflation" title="Inflation Conditions">
-        <div className="card-grid">
-          <MetricCard
-            label="5Y Breakeven"
-            value={
-              dashboardData?.inflation?.fiveYearBreakeven?.value ?? "--"
-            }
-            description="5-year inflation expectations"
-          />
-
-          <MetricCard
-            label="10Y Breakeven"
-            value={
-              dashboardData?.inflation?.tenYearBreakeven?.value ?? "--"
-            }
-            description="10-year inflation expectations"
-          />
-
-          <MetricCard
-            label="Core PCE"
-            value={dashboardData?.inflation?.corePce?.value ?? "--"}
-            description="Core inflation"
-          />
-
-          <MetricCard
-            label="PPI"
-            value={dashboardData?.inflation?.ppi?.value ?? "--"}
-            description="Producer prices"
-          />
-        </div>
-      </DashboardSection>
-
-      <DashboardSection label="Labour" title="Labour Market">
-        <div className="card-grid">
-          <MetricCard
-            label="Unemployment"
-            value={
-              dashboardData?.labour?.unemploymentRate?.value ?? "--"
-            }
-            description="Unemployment rate"
-          />
-
-          <MetricCard
-            label="Nonfarm Payrolls"
-            value={
-              dashboardData?.labour?.nonfarmPayrolls?.value ?? "--"
-            }
-            description="US payroll employment"
-          />
-
-          <MetricCard
-            label="ADP Employment"
-            value={
-              dashboardData?.labour?.adpEmployment?.value ?? "--"
-            }
-            description="Private employment"
-          />
-
-          <MetricCard
-            label="Initial Claims"
-            value={
-              dashboardData?.consumerHousing?.initialClaims?.value ?? "--"
-            }
-            description="Weekly jobless claims"
-          />
-        </div>
-      </DashboardSection>
-
-      <DashboardSection label="Growth" title="Economic Growth">
-        <div className="card-grid">
-          <MetricCard
-            label="Real GDP"
-            value={dashboardData?.growth?.realGdp?.value ?? "--"}
-            description="Real economic output"
-          />
-
-          <MetricCard
-            label="Industrial Production"
-            value={
-              dashboardData?.growth?.industrialProduction?.value ?? "--"
-            }
-            description="Industrial activity"
-          />
-
-          <MetricCard
-            label="Retail Sales"
-            value={dashboardData?.growth?.retailSales?.value ?? "--"}
-            description="Consumer spending"
-          />
-
-          <MetricCard
-            label="Consumer Sentiment"
-            value={
-              dashboardData?.consumerHousing?.consumerSentiment?.value ??
-              "--"
-            }
-            description="Consumer confidence"
-          />
-        </div>
-      </DashboardSection>
-
-      <DashboardSection label="Liquidity" title="System Liquidity">
-        <div className="card-grid">
-          <MetricCard
-            label="M2 Money Supply"
-            value={
-              dashboardData?.liquidity?.m2MoneySupply?.value ?? "--"
-            }
-            description="Broad money supply"
-          />
-
-          <MetricCard
-            label="Reverse Repo"
-            value={
-              dashboardData?.liquidity?.reverseRepo?.value ?? "--"
-            }
-            description="Fed reverse repo facility"
-          />
-
-          <MetricCard
-            label="Treasury General Account"
-            value={
-              dashboardData?.liquidity?.treasuryGeneralAccount?.value ??
-              "--"
-            }
-            description="US Treasury cash balance"
-          />
-
-          <MetricCard
-            label="Housing Starts"
-            value={
-              dashboardData?.consumerHousing?.housingStarts?.value ?? "--"
-            }
-            description="Residential construction"
-          />
-        </div>
-      </DashboardSection>
-
-      <DashboardSection label="Risk" title="Financial Conditions">
-        <div className="card-grid">
-          <MetricCard
-            label="VIX"
-            value={dashboardData?.risk?.vix?.value ?? "--"}
-            description="Market volatility"
-          />
-
-          <MetricCard
-            label="Financial Stress"
-            value={
-              dashboardData?.risk?.financialStress?.value ?? "--"
-            }
-            description="Financial stress index"
-          />
-
-          <MetricCard
-            label="High-Yield Spread"
-            value={
-              dashboardData?.risk?.highYieldSpread?.value ?? "--"
-            }
-            description="Credit risk spread"
-          />
-
-          <MetricCard
-            label="Dollar"
-            value={
-              dashboardData?.currency?.dollarIndex?.value ?? "--"
-            }
-            description="Broad US dollar index"
-          />
-        </div>
-      </DashboardSection>
-    </>
-  );
+function formatValue(value, display) {
+  if (!Number.isFinite(value)) return 'Unavailable';
+  return `${value.toLocaleString('en-GB', {
+    minimumFractionDigits: display.decimals, maximumFractionDigits: display.decimals,
+    signDisplay: display.signed ? 'exceptZero' : 'auto'
+  })} ${display.unit}`;
 }
 
+function MacroMetric({ label, observation }) {
+  const display = observation?.display;
+  const checked = display?.checkedAt ? new Date(display.checkedAt) : null;
+  return <div className="card macro-metric">
+    <span>{label}</span>
+    <h2>{display ? formatValue(display.value, display) : 'Unavailable'}</h2>
+    <p>{display?.description ?? 'Waiting for economic data with verified units.'}</p>
+    {display && <>
+      <p>Period: <strong>{observation.date}</strong></p>
+      <p>Previous: {formatValue(display.previousValue, display)}{display.previousDate ? ` (${display.previousDate})` : ''}</p>
+      <small>{display.status}. Figures can be revised.</small>
+      <p><a href={display.sourceUrl} target="_blank" rel="noreferrer">FRED · {display.seriesId}</a></p>
+      <small>Source checked: {checked && Number.isFinite(checked.getTime()) ? checked.toLocaleString('en-GB', { timeZone: 'UTC' }) + ' UTC' : 'unknown'}</small>
+    </>}
+  </div>;
+}
+
+function MacroPage({ dashboardData, currentTime }) {
+  return <>
+    <PageHeader title="Macro" subtitle="US macroeconomic conditions" currentTime={currentTime} />
+    <div className="card">
+      <p>Latest available economic readings. YoY means year-on-year; MoM means month-on-month. Payrolls show jobs added or lost, not total employment.</p>
+      <p>Period is the observation date, not the release date (monthly and quarterly series use the period's first day). Previous uses the latest available revisions. FRED responses are cached for 10 minutes; source publication and dashboard refresh can add delay. This is not a live economic calendar or a consensus-forecast feed.</p>
+    </div>
+    {sections.map(([label, title, metrics]) => <DashboardSection key={label} label={label} title={title}>
+      <div className="card-grid">
+        {metrics.map(([name, path]) => <MacroMetric key={path} label={name}
+          observation={path.split('.').reduce((data, key) => data?.[key], dashboardData)} />)}
+      </div>
+    </DashboardSection>)}
+  </>;
+}
 export default MacroPage;

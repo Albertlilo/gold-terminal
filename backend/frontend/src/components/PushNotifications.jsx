@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { accountFetch } from '../lib/accountClient';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'https://gold-terminal-ufv4.onrender.com';
 const TOKEN_KEY = 'gold-terminal-push-device';
@@ -13,9 +14,9 @@ function deviceToken(create = false) {
 }
 async function request(path, method = 'GET', body) {
   const token = deviceToken();
-  const response = await fetch(`${API}/api/push/${path}`, {
+  const response = await accountFetch(`${API}/api/push/${path}`, {
     method, signal: AbortSignal.timeout(30000),
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { ...(token ? { 'X-Device-Token': token } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const data = await response.json();
@@ -30,7 +31,6 @@ export default function PushNotifications({ now }) {
   const [config, setConfig] = useState(null);
   const [status, setStatus] = useState(null);
   const [interval, setInterval] = useState('1h');
-  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [reload, setReload] = useState(0);
@@ -66,8 +66,8 @@ export default function PushNotifications({ now }) {
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
       if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: publicKeyBytes(config.publicKey) });
-      await request('subscription', 'POST', { subscription: subscription.toJSON(), interval, enrollmentCode: code });
-      setCode(''); setMessage('This device is registered. Send a test and check the scheduler status below.');
+      await request('subscription', 'POST', { subscription: subscription.toJSON(), interval });
+      setMessage('This device is registered to your Pro account. Send a test and check the scheduler status below.');
       setReload(value => value + 1);
     } catch (error) { setMessage(error.message || 'Could not enable phone notifications.'); }
     finally { setBusy(false); }
@@ -101,7 +101,6 @@ export default function PushNotifications({ now }) {
     <p><strong>Device:</strong> {status?.subscribed && status.local ? 'Registered' : status?.subscribed ? 'Browser subscription missing — enable again' : 'Not registered'}</p>
     <div className="phone-alert-fields">
       <label>Alert timeframe<select value={interval} onChange={event => setInterval(event.target.value)} disabled={busy}><option value="5min">5 minutes</option><option value="1h">1 hour</option><option value="1day">Daily</option></select></label>
-      {!status?.subscribed && <label>Notification access code<input type="password" autoComplete="off" value={code} onChange={event => setCode(event.target.value)} placeholder="Private setup code" disabled={busy} /></label>}
     </div>
     <div className="phone-alert-actions">
       <button onClick={enable} disabled={busy || !config?.enabled || !supported() || needsHomeScreen}>{status?.subscribed ? 'Save / reconnect' : 'Enable phone alerts'}</button>

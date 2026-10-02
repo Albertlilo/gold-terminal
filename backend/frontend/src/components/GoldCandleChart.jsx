@@ -2,6 +2,7 @@ import { getGoldSession } from "../lib/goldSession";
 import { useEffect, useRef, useState } from "react";
 import { candleWindow, mergeCandles, candlePriceBounds } from "../lib/candles";
 import { requestHistory } from "../lib/historyRequest";
+import { accountFetch } from '../lib/accountClient';
 import { clampCount, panWindow, olderPage } from "../lib/chartNavigation";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://gold-terminal-ufv4.onrender.com";
@@ -69,7 +70,7 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
       try {
         const data = await requestHistory(
           API_BASE_URL + "/api/market/gold/history?interval=" + interval,
-          { signal: controller.signal },
+          { signal: controller.signal, fetchImpl: accountFetch },
         );
         if (active) {
           onAuditChange?.(interval, data.signalAudit ?? null);
@@ -139,7 +140,7 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
     olderRequest.current = controller;
     setLoadingOlder(true);
     try {
-      const data = await requestHistory(`${API_BASE_URL}/api/market/gold/history?interval=${interval}&before=${before}`, { signal: controller.signal });
+      const data = await requestHistory(`${API_BASE_URL}/api/market/gold/history?interval=${interval}&before=${before}`, { signal: controller.signal, fetchImpl: accountFetch });
       if (controller.signal.aborted) return;
       const older = olderPage(candles, data.candles, before);
       setCandles(previous => mergeCandles(older, previous));

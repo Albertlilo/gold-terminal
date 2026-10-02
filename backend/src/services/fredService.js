@@ -1,5 +1,7 @@
 const axios = require("axios");
 const FRED_BASE_URL = "https://api.stlouisfed.org/fred";
+const { macroPresentation, cleanObservations, rawUnits } = require('./macroPresentation');
+const retrievalTimes = new WeakMap();
 
 const { createFredRequestCache } = require("./fredRequestCache");
 const fredRequests = createFredRequestCache({
@@ -9,26 +11,26 @@ const fredRequests = createFredRequestCache({
       timeout: 15000,
       params: { series_id: seriesId, api_key: process.env.FRED_API_KEY.trim(), file_type: "json", sort_order: "desc", limit }
     });
-    return response.data.observations;
+    const observations = response.data.observations;
+    if (Array.isArray(observations)) retrievalTimes.set(observations, new Date().toISOString());
+    return observations;
   }
 });
 const getSeriesObservations = (seriesId, limit = 10) => fredRequests.load(seriesId, limit);
 
-const buildSeriesResponse = async (seriesId, seriesName, limit = 10, unit = "%") => {
-  const rawObservations = await getSeriesObservations(seriesId, limit);
+const buildSeriesResponse = async (seriesId, seriesName, limit = 10, unit = rawUnits[seriesId] ?? "%") => {
+  const rawObservations = await getSeriesObservations(seriesId,
+    ['PCEPILFE', 'PPIACO'].includes(seriesId) ? Math.max(limit, 26) : limit);
 
-  const observations = rawObservations
-    .filter((item) => item.value !== ".")
-    .map((item) => ({
-      date: item.date,
-      value: Number(item.value)
-    }));
+  const observations = cleanObservations(rawObservations);
+  if (!observations.length) throw new Error(`No valid observations for ${seriesId}`);
+  const fetchedAt = retrievalTimes.get(rawObservations) ?? null;
 
-  const latest = observations[0];
+  const latest = { ...observations[0], display: macroPresentation(seriesId, observations, fetchedAt) };
   const previous = observations[1];
 
   const change = Number(
-    (latest.value - previous.value).toFixed(2)
+    (previous ? latest.value - previous.value : NaN).toFixed(2)
   );
 
   const direction =
@@ -43,7 +45,7 @@ const buildSeriesResponse = async (seriesId, seriesName, limit = 10, unit = "%")
     previous,
     change,
     direction,
-    fetchedAt: new Date().toISOString(),
+    fetchedAt,
     observations
   };
 };

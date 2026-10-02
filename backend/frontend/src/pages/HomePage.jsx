@@ -94,14 +94,14 @@ function HomePage({
   return (
     <>
       <PageHeader
-        title="Gold Terminal"
+        title="Trendline Insight"
         subtitle="Live gold, macro and risk command centre"
         currentTime={currentTime}
       />
 
       <section className="home-intro-panel">
         <span className="section-label">
-          What is Gold Terminal?
+          What is Trendline Insight?
         </span>
 
         <h2>
@@ -109,7 +109,7 @@ function HomePage({
         </h2>
 
         <p>
-          Gold Terminal tracks the forces that can move gold, including
+          Trendline Insight tracks the forces that can move gold, including
           real yields, dollar strength, inflation expectations, market
           stress, labour data, and liquidity conditions. The Gold Score
           turns those signals into a simple view of whether the current

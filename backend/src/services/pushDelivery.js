@@ -1,4 +1,4 @@
-function createDelivery({ store, send, now = Date.now }) {
+function createDelivery({ store, send, canDeliver = async () => false, now = Date.now }) {
   return async function deliver() {
     let accepted = 0;
     for (let i = 0; i < 20; i++) {
@@ -10,6 +10,7 @@ function createDelivery({ store, send, now = Date.now }) {
         await finish('cancelled'); continue;
       }
       try {
+        if (!await canDeliver(device)) { await finish('access-denied'); continue; }
         const ttl = Math.floor((Date.parse(job.payload.expiresAt) - now()) / 1000);
         if (ttl <= 0) { await finish('expired'); continue; }
         await send(device.subscription, job.payload, ttl);

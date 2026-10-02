@@ -10,8 +10,8 @@ self.addEventListener('push', event => {
   const details = payload.kind === 'technical-retest-confirmed'
     ? ` Close ${price(payload.confirmationClose)} · trigger ${price(payload.trigger)}. Invalidation: ${payload.invalidation?.condition === 'completed-close-below' ? 'completed close below' : 'completed close above'} ${price(payload.invalidation?.price)}. Confirmed ${payload.confirmedAt}.`
     : '';
-  event.waitUntil(self.registration.showNotification(expired ? 'Gold Terminal · delayed notification' : (payload.title || 'Gold Terminal'), {
-    body: expired ? 'This notification arrived after its validity window. Open the chart for the current status; do not treat it as a fresh setup.' : `${payload.body || 'Open Gold Terminal to review.'}${details}`,
+  event.waitUntil(self.registration.showNotification(expired ? 'Trendline Insight · delayed notification' : (payload.title || 'Trendline Insight'), {
+    body: expired ? 'This notification arrived after its validity window. Open the chart for the current status; do not treat it as a fresh setup.' : `${payload.body || 'Open Trendline Insight to review.'}${details}`,
     tag: payload.id || 'gold-terminal-update', renotify: false,
     icon: '/notification-icon.png', badge: '/notification-icon.png',
     data: { url: `/?page=technicals&interval=${interval}` },

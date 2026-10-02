@@ -2,7 +2,7 @@ function Sidebar({ activePage, setActivePage }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <h2>Gold Terminal</h2>
+        <h2>Trendline Insight</h2>
         <span>Free Educational Dashboard</span>
       </div>
 

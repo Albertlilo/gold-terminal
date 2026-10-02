@@ -3,8 +3,9 @@ const { randomUUID } = require('node:crypto');
 const { getConfig, equalSecret, hash, validateSubscription } = require('../services/pushConfig');
 const store = require('../services/pushStore');
 const runtime = require('../services/pushRuntime');
+const accountRuntime = require('../services/accountRuntime');
 
-function createPushRouter({ storage = store, jobs = runtime, config = getConfig, now = Date.now } = {}) {
+function createPushRouter({ storage = store, jobs = runtime, config = getConfig, access = accountRuntime, now = Date.now } = {}) {
   const router = express.Router();
   const attempts = new Map();
   router.use((req, res, next) => {
@@ -38,43 +39,54 @@ function createPushRouter({ storage = store, jobs = runtime, config = getConfig,
     next();
   });
   router.use((req, res, next) => {
-    const token = req.get('Authorization')?.replace(/^Bearer /, '');
+    const token = req.get('X-Device-Token');
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return res.status(401).json({ message: 'Device authorization required.' });
     req.deviceId = hash(token); next();
+  });
+  router.use(access.authenticate);
+  router.use(async (req,res,next) => {
+    try {
+      const device = await storage.get(req.deviceId);
+      if (device?.ownerUid && device.ownerUid !== req.account.uid) return res.status(403).json({ message: 'This device belongs to another account.' });
+      req.device = device; next();
+    } catch { res.status(503).json({ message: 'Device ownership could not be verified.' }); }
   });
   router.get('/status', async (req, res) => {
     try {
       const device = await storage.get(req.deviceId);
       const status = await storage.status();
-      res.json({ subscribed: Boolean(device), interval: device?.interval, checker: status });
+      res.json({ subscribed: Boolean(device?.ownerUid), interval: device?.interval, checker: status });
     } catch { res.status(503).json({ message: 'Notification storage unavailable.' }); }
   });
-  router.post('/subscription', async (req, res) => {
+  router.post('/subscription', access.requirePremium, async (req, res) => {
     const cfg = config();
     if (!cfg.enabled) return res.status(503).json({ message: 'Phone notifications need server configuration.' });
     const subscription = validateSubscription(req.body?.subscription);
     const interval = req.body?.interval;
     if (!subscription || !['5min', '1h', '1day'].includes(interval)) return res.status(400).json({ message: 'Unsupported subscription or timeframe.' });
     try {
-      if (!await storage.get(req.deviceId) && !equalSecret(req.body.enrollmentCode, cfg.enrollmentCode))
-        return res.status(403).json({ message: 'The notification access code is incorrect.' });
-      await storage.subscribe(req.deviceId, subscription, interval);
+      if (req.device && !req.device.ownerUid && req.access.role !== 'owner')
+        return res.status(403).json({ message: 'The owner must reconnect this legacy device.' });
+      await storage.subscribe(req.deviceId, subscription, interval, req.account.uid);
       res.json({ subscribed: true, interval });
     } catch { res.status(503).json({ message: 'Could not save this device. If browser storage was cleared, reset its notification permission and try again.' }); }
   });
   router.delete('/subscription', async (req, res) => {
-    try { await storage.remove(req.deviceId); res.json({ subscribed: false }); }
+    try {
+      if (req.device && !req.device.ownerUid && (await access.entitlement(req.account.uid)).role !== 'owner') return res.status(403).json({ message: 'Device ownership required.' });
+      await storage.remove(req.deviceId); res.json({ subscribed: false });
+    }
     catch { res.status(503).json({ message: 'Could not disable server delivery. Please retry.' }); }
   });
-  router.post('/test', async (req, res) => {
+  router.post('/test', access.requirePremium, async (req, res) => {
     if (!config().enabled) return res.status(503).json({ message: 'Phone notifications are not configured.' });
     try {
       const device = await storage.get(req.deviceId);
-      if (!device) return res.status(404).json({ message: 'Enable notifications on this device first.' });
+      if (!device?.ownerUid) return res.status(404).json({ message: 'Reconnect notifications to your account first.' });
       const key = `test:${req.deviceId}:${Math.floor(now() / 60000)}`;
       if (!await storage.claimSlot(key, new Date(now() + 120000))) return res.status(429).json({ message: 'One test per minute is allowed.' });
       await storage.enqueue(device, { id: `test:${randomUUID()}`, kind: 'test', interval: device.interval,
-        title: 'Gold Terminal · test notification', body: 'Phone delivery test. This is not a trading signal.',
+        title: 'Trendline Insight · test notification', body: 'Phone delivery test. This is not a trading signal.',
         expiresAt: new Date(now() + 300000).toISOString() });
       await jobs.deliver();
       res.json({ message: 'Test submitted. Confirm that it appears on your phone; delivery is not guaranteed.' });

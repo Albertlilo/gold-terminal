@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Gold Terminal",
-  "short_name": "Gold Terminal",
+  "name": "Trendline Insight",
+  "short_name": "Trendline Insight",
   "start_url": "/?page=technicals",
   "scope": "/",
   "display": "standalone",

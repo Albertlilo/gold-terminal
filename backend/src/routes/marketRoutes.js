@@ -4,6 +4,7 @@ const axios = require("axios");
 const store = require("../services/candleStore");
 const { createHistoryService, normalizeCandles, PAGE_SIZE } = require("../services/candleHistoryService");
 const router = express.Router();
+router.use(require('../services/accountRuntime').requirePremium);
 const { createSignalAuditService } = require("../services/signalAuditService");
 let auditService;
 async function auditHistory(interval, candles) {

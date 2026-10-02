@@ -32,7 +32,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
   return (
     <div className="technical-terminal">
       <header className="terminal-brand">
-        <div><span className="gold-bar-icon" aria-hidden="true">▰</span><div><strong><span>Gold</span> Terminal</strong><small>DATA · INSIGHTS · DISCIPLINE</small></div></div>
+        <div><span className="gold-bar-icon" aria-hidden="true">▰</span><div><strong><span>Trendline</span> Insight</strong><small>DATA · INSIGHTS · DISCIPLINE</small></div></div>
         <div className="terminal-symbol"><span>XAUUSD</span><time dateTime={currentTime.toISOString()}>{currentTime.toLocaleString()}</time></div>
       </header>
       <div className="terminal-intro"><h1>Technical Analysis</h1><p>Analysis timeframe: <strong>{TIMEFRAMES[interval].label}</strong> · signals use completed candles.</p><p className="analysis-method">The price checks every 30 seconds; that does not create a new candle confirmation. WAIT is a status, not an order button.</p></div>

@@ -1,5 +1,10 @@
 # Technical phone notifications
 
+**Account migration:** [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) supersedes the shared
+enrollment instructions below. New code requires a verified Pro/owner account;
+`PUSH_ENROLLMENT_CODE` is no longer used. Configure Firebase and owner access before
+deploying, then reconnect existing devices. The scheduler configuration is unchanged.
+
 Implemented locally: opt-in controls, service worker, install manifest, private
 device subscriptions in Atlas, delivery queue, retries, scheduled checker and
 offline tests. Production delivery still needs deployment, environment settings,

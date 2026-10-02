@@ -2650,3 +2650,7 @@ textarea {
 .phone-alert-actions button { cursor: pointer; }
 .phone-alert-actions button:disabled { opacity: .5; cursor: default; }
 .phone-alerts p { overflow-wrap: anywhere; }
+.account-panel, .account-preview { max-width: 1000px; margin: 20px auto; padding: 20px; }
+.account-panel button { min-height: 44px; margin: 4px; padding: 10px 14px; border: 1px solid #635323; border-radius: 9px; background: #191919; color: #f0e7cd; cursor: pointer; }
+.account-panel .analysis-method { overflow-wrap: anywhere; }
+.account-preview svg { width: 100%; max-height: 200px; }

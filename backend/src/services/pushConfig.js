@@ -13,8 +13,7 @@ function getConfig(env = process.env) {
     valid = key.getPublicKey().equals(Buffer.from(vapid.publicKey, 'base64url'));
   } catch { /* Missing configuration keeps the feature off. */ }
   const enabled = env.PUSH_ENABLED === 'true' && valid && origins.length > 0
-    && origins.every(origin => { try { const u = new URL(origin); return u.origin === origin && (u.protocol === 'https:' || ['http://localhost:5173', 'http://127.0.0.1:5173'].includes(origin)); } catch { return false; } })
-    && (env.PUSH_ENROLLMENT_CODE || '').length >= 32;
+    && origins.every(origin => { try { const u = new URL(origin); return u.origin === origin && (u.protocol === 'https:' || ['http://localhost:5173', 'http://127.0.0.1:5173'].includes(origin)); } catch { return false; } });
   return { enabled, origins, vapid, enrollmentCode: env.PUSH_ENROLLMENT_CODE,
     schedulerSecret: (env.PUSH_SCHEDULER_SECRET || '').length >= 32 ? env.PUSH_SCHEDULER_SECRET : null,
     internalScheduler: env.PUSH_RUN_SCHEDULER === 'true' };

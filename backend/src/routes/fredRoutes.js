@@ -8,6 +8,7 @@ getGoldScore, getNonfarmPayrolls, getAdpEmployment, getCorePce, getPpi,
 getDashboard}  = require("../controllers/fredController");
 
 const router = express.Router();
+router.use(require('../services/accountRuntime').requirePremium);
 
 router.get("/2y", getTwoYearYield);
 router.get("/10y", getTenYearYield);

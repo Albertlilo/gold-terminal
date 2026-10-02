@@ -1,4 +1,6 @@
 import { getGoldSession } from "./lib/goldSession";
+import AccountGate from './components/AccountGate';
+import { accountFetch } from './lib/accountClient';
 import DashboardDataStatus from "./components/DashboardDataStatus";
 import TechnicalsPage from "./pages/TechnicalsPage";
 import IndicatorsPage from "./pages/IndicatorsPage";
@@ -45,7 +47,7 @@ function App() {
       controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 65000);
       try {
-        const response = await fetch(
+        const response = await accountFetch(
           `${API_BASE_URL}/api/fred/dashboard`, { signal: controller.signal }
         );
 
@@ -282,4 +284,4 @@ function App() {
   );
 }
 
-export default App;
+export default function ProtectedApp() { return <AccountGate><App /></AccountGate>; }

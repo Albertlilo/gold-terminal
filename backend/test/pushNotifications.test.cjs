@@ -80,34 +80,41 @@ test('delivery handles accepted, revoked, deleted, transient and permanent outco
     const store = {claimDelivery:async()=>{if(!available)return null;available=false;return job;},
       get:async()=>code==='deleted'?null:{subscription:subscription()},remove:async()=>{removed=true;},
       finish:async(_,status)=>{result=status;}};
-    await createDelivery({store,now:()=>clock,send:async()=>{called++;if(code)throw {statusCode:code};}})();
+    await createDelivery({store,canDeliver:async()=>true,now:()=>clock,send:async()=>{called++;if(code)throw {statusCode:code};}})();
     assert.equal(result, code===null?'accepted':[404,410].includes(code)?'expired-subscription':code==='deleted'?'cancelled':code==='expired'?'expired':[429,503].includes(code)?'pending':'failed');
     assert.equal(removed,[404,410].includes(code));
     if(['deleted','expired'].includes(code))assert.equal(called,0);
   }
 });
-test('push routes require allowed origin, private enrollment and device ownership', async t => {
+test('push routes require allowed origin, verified account and device ownership', async t => {
   const express = require('express');
   const {createPushRouter} = require('../src/routes/pushRoutes');
   const devices = new Map(); let sends=0, checks=0;
   const cfg={enabled:true,origins:['https://example.com'],vapid:{publicKey:'public'},enrollmentCode:'x'.repeat(32),schedulerSecret:'s'.repeat(32)};
   const storage={get:async id=>devices.get(id),status:async()=>null,
-    subscribe:async(id,sub,interval)=>devices.set(id,{_id:id,subscription:sub,interval}),
+    subscribe:async(id,sub,interval,ownerUid)=>devices.set(id,{_id:id,subscription:sub,interval,ownerUid}),
     remove:async id=>devices.delete(id),claimSlot:async()=>true,enqueue:async()=>{sends++;}};
-  const app=express();app.use(express.json());app.use('/api/push',createPushRouter({storage,config:()=>cfg,jobs:{check:async()=>{checks++;return{};},deliver:async()=>{}},now:()=>clock}));
+  const access={authenticate:(req,res,next)=>{if(req.get('Authorization')!=='Bearer valid-account')return res.status(401).end();req.account={uid:'owner'};next();},
+    requirePremium:(req,res,next)=>{req.access={role:'owner'};next();},entitlement:async()=>({role:'owner'})};
+  const app=express();app.use(express.json());app.use('/api/push',createPushRouter({storage,access,config:()=>cfg,jobs:{check:async()=>{checks++;return{};},deliver:async()=>{}},now:()=>clock}));
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
   t.after(()=>new Promise(resolve=>server.close(resolve)));
   const base=`http://127.0.0.1:${server.address().port}/api/push`;
   const token=randomBytes(32).toString('base64url');
-  const call=(path,method='GET',body,extra={})=>fetch(base+path,{method,headers:{Origin:'https://example.com',Authorization:`Bearer ${token}`,'Content-Type':'application/json',...extra},...(body?{body:JSON.stringify(body)}:{})});
+  const call=(path,method='GET',body,extra={})=>fetch(base+path,{method,headers:{Origin:'https://example.com',Authorization:'Bearer valid-account','X-Device-Token':token,'Content-Type':'application/json',...extra},...(body?{body:JSON.stringify(body)}:{})});
   assert.equal((await call('/status','GET',null,{Origin:'https://evil.com'})).status,403);
   assert.equal((await call('/status','GET',null,{Authorization:''})).status,401);
   const payload={subscription:subscription(),interval:'1h'};
-  assert.equal((await call('/subscription','POST',payload)).status,403);
+  assert.equal((await call('/subscription','POST',payload,{Authorization:''})).status,401);
   assert.equal((await call('/subscription','POST',{...payload,enrollmentCode:cfg.enrollmentCode})).status,200);
   assert.ok(devices.has(hash(token)));
+  devices.get(hash(token)).ownerUid='someone-else';
+  assert.equal((await call('/subscription','POST',payload)).status,403);
+  assert.equal((await call('/subscription','DELETE')).status,403);
+  assert.equal((await call('/test','POST')).status,403);
+  devices.get(hash(token)).ownerUid='owner';
   assert.equal((await call('/test','POST')).status,200);assert.equal(sends,1);
-  assert.equal((await call('/test','POST',null,{Authorization:`Bearer ${randomBytes(32).toString('base64url')}`})).status,404);
+  assert.equal((await call('/test','POST',null,{'X-Device-Token':randomBytes(32).toString('base64url')})).status,404);
   assert.equal((await call('/run','POST')).status,403);
   assert.equal((await call('/run','POST',null,{Authorization:`Bearer ${cfg.schedulerSecret}`})).status,200);assert.equal(checks,1);
   assert.equal((await call('/subscription','DELETE')).status,200);assert.equal(devices.size,0);

@@ -18,13 +18,15 @@ app.get("/api/health", (req, res) => {
 
 app.get("/", (req,res) => {
     res.json({
-        name: "Gold Terminal API",
+        name: "Trendline Insight API",
         version: "1.0.0",
         status: "Running 🚀"
     });
 });
 
 app.use("/api/users", usersRouters);
+app.use('/api/account', require('./routes/accountRoutes'));
+app.use('/api/preview', require('./routes/previewRoutes'));
 
 app.use("/api/fred", fredRoutes);
 app.use("/api/market", require("./routes/marketRoutes"));

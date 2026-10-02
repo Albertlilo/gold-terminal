@@ -30,6 +30,10 @@ async function getCollection() {
 }
 
 module.exports = {
+  async getAccessCollection() {
+    await getCollection();
+    return database.collection('account_access');
+  },
   async getPushCollection(name) {
     if (!["push_subscriptions", "push_deliveries", "push_state"].includes(name)) throw new Error("Invalid collection");
     await getCollection();

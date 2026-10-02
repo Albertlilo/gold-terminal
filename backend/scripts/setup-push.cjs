@@ -12,7 +12,6 @@ const contents = [
   '# Copy into Render backend environment settings. This file is not auto-loaded.',
   'PUSH_ENABLED=true', `PUSH_ALLOWED_ORIGINS=${origin}`, `VAPID_SUBJECT=${origin}`,
   `VAPID_PUBLIC_KEY=${publicKey}`, `VAPID_PRIVATE_KEY=${privateKey}`,
-  `PUSH_ENROLLMENT_CODE=${randomBytes(32).toString('base64url')}`,
   `PUSH_SCHEDULER_SECRET=${randomBytes(32).toString('base64url')}`,
   'PUSH_RUN_SCHEDULER=false', '',
 ].join('\n');

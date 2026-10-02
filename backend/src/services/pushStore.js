@@ -11,11 +11,12 @@ async function claimSlot(key, expiresAt) {
 }
 return {
   claimSlot,
-  async subscribe(id, subscription, interval) {
+  async subscribe(id, subscription, interval, ownerUid) {
     const collection = await subscriptions();
     const existing = await collection.findOne({ _id: id });
     if (!existing && await collection.countDocuments() >= 1000) throw new Error('Subscription capacity reached');
-    await collection.updateOne({ _id: id }, { $set: { subscription, endpointHash: hash(subscription.endpoint), interval,
+    if (!ownerUid) throw new Error('Device owner required');
+    await collection.updateOne({ _id: id, $or: [{ ownerUid }, { ownerUid: { $exists: false } }] }, { $set: { subscription, endpointHash: hash(subscription.endpoint), interval, ownerUid,
       updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } }, { upsert: true });
   },
   async get(id) { return (await subscriptions()).findOne({ _id: id }); },
