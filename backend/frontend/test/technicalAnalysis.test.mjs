@@ -23,6 +23,38 @@ test('support break requires a failed retest before Sell Watch',()=>{
   assert.equal(a.confirmation,'Sell Watch');assert.equal(a.state,'Failed support retest');
   assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Sell Watch');
 });
+test('support approach starts a separate buy setup and bullish reclaim confirms Support Bounce',()=>{
+  const touch = { ...row(20,99.3,99.2,100), open:99.6 };
+  const developing = analyse([...base(),touch]);
+  assert.equal(developing.state,'Support bounce developing');
+  assert.equal(developing.setup.type,'support-bounce');
+  assert.equal(developing.confirmation,'None');
+  const reclaimed = { ...row(21,99.8,99.3,100), open:99.4 };
+  const confirmed = analyse([...base(),touch,reclaimed]);
+  assert.equal(confirmed.confirmation,'Support Bounce');
+  assert.equal(confirmed.state,'Support bounce confirmed');
+  assert.equal(makeTechnicalPlan(confirmed,{isOpen:true}).signal,'Support Bounce');
+  assert.equal(makeTechnicalPlan(confirmed,{isOpen:true}).preferred,'Support-bounce buy confirmed');
+  assert.match(makeTechnicalPlan(confirmed,{isOpen:true}).invalidation,/support zone/i);
+  const bearishHold=analyse([...base(),touch,reclaimed,{...row(22,99.7,99.6,100.2),open:100}]);
+  assert.equal(bearishHold.confirmation,'Support Bounce');
+  assert.equal(bearishHold.state,'Support bounce confirmed');
+  assert.equal(makeTechnicalPlan(confirmed,{isOpen:false}).signal,'Wait');
+});
+test('support bounce waits for a bullish completed reclaim and invalidates below support',()=>{
+  const touch={...row(20,99.3,99.2,100),open:99.6};
+  const bearishReclaim={...row(21,99.8,99.3,100),open:100};
+  const developing=analyse([...base(),touch,bearishReclaim]);
+  assert.equal(developing.confirmation,'None');
+  assert.equal(makeTechnicalPlan(developing,{isOpen:true}).signal,'Wait');
+  assert.match(makeTechnicalPlan(developing,{isOpen:true}).preferred,/developing/i);
+  const invalid=analyse([...base(),touch,row(21,98.5,98,99)]);
+  assert.equal(invalid.state,'Support bounce invalidated');
+  assert.equal(invalid.confirmation,'None');
+  const closeThroughSupport=analyse([...base(),{...row(20,98.95,98.9,99.1),open:99.2}]);
+  assert.notEqual(closeThroughSupport.setup?.type,'support-bounce');
+  assert.equal(closeThroughSupport.confirmation,'None');
+});
 test('retest without a close past trigger remains unconfirmed',()=>{
   const a=analyse([...base(),row(20,102,100,103),row(21,101.05,100.9,102)]);
   assert.equal(a.confirmation,'None');
@@ -30,7 +62,8 @@ test('retest without a close past trigger remains unconfirmed',()=>{
 test('noise boundary is inclusive and wicks alone cannot establish breaks',()=>{
   for(const close of [101*1.001,99*0.999,100]) {
     const a=analyse([...base(),row(20,close,97,103)]);
-    assert.equal(a.state,'Between zones');assert.equal(a.confirmation,'None');
+    assert.equal(a.confirmation,'None');
+    assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Wait');
   }
 });
 test('zones freeze at break rather than incorporating new highs',()=>{
@@ -59,6 +92,46 @@ test('technical watch remains independent of macro context',()=>{
   assert.equal(makeTechnicalPlan(a,{isOpen:false}).signal,'Wait');
   assert.equal(makeTechnicalPlan(a,{isOpen:true,macroFresh:false}).signal,'Sell Watch');
   assert.equal(makeTechnicalPlan({...a,stale:true},{isOpen:true}).signal,'Wait');
+});
+test('support bounce remains independent of macro context',()=>{
+  const touch={...row(20,99.3,99.2,100),open:99.6};
+  const reclaim={...row(21,99.8,99.3,100),open:99.4};
+  const a=analyse([...base(),touch,reclaim]);
+  for(const macro of ['Bullish','Bearish','High Conflict','Unavailable']) assert.equal(makeTechnicalPlan(a,{isOpen:true,macro}).signal,'Support Bounce');
+});
+test('resistance approach starts a separate sell setup and bearish rejection confirms',()=>{
+  const touch={...row(20,100.7,100.2,100.9),open:100.4};
+  const developing=analyse([...base(),touch]);
+  assert.equal(developing.state,'Resistance rejection developing');
+  assert.equal(developing.setup.type,'resistance-rejection');
+  assert.equal(developing.confirmation,'None');
+  const rejected={...row(21,100.4,100.3,100.8),open:100.6};
+  const confirmed=analyse([...base(),touch,rejected]);
+  assert.equal(confirmed.confirmation,'Resistance Rejection');
+  assert.equal(confirmed.state,'Resistance rejection confirmed');
+  assert.equal(makeTechnicalPlan(confirmed,{isOpen:true}).signal,'Resistance Rejection');
+  assert.equal(makeTechnicalPlan(confirmed,{isOpen:true}).preferred,'Resistance-rejection sell confirmed');
+  assert.match(makeTechnicalPlan(confirmed,{isOpen:true}).invalidation,/resistance zone/i);
+  const bearishHold=analyse([...base(),touch,rejected,{...row(22,100.4,100.2,100.9),open:100.7}]);
+  assert.equal(bearishHold.confirmation,'Resistance Rejection');
+  assert.equal(bearishHold.state,'Resistance rejection confirmed');
+});
+test('resistance rejection waits for a bearish completed close and invalidates above resistance',()=>{
+  const touch={...row(20,100.7,100.2,100.9),open:100.4};
+  const bullishReclaim={...row(21,100.4,100.1,100.8),open:100.2};
+  const developing=analyse([...base(),touch,bullishReclaim]);
+  assert.equal(developing.confirmation,'None');
+  assert.equal(makeTechnicalPlan(developing,{isOpen:true}).signal,'Wait');
+  assert.match(makeTechnicalPlan(developing,{isOpen:true}).preferred,/developing/i);
+  const invalid=analyse([...base(),touch,row(21,101.2,100.8,101.3)]);
+  assert.equal(invalid.state,'Resistance rejection invalidated');
+  assert.equal(invalid.confirmation,'None');
+});
+test('resistance rejection remains independent of macro context',()=>{
+  const touch={...row(20,100.7,100.2,100.9),open:100.4};
+  const rejected={...row(21,100.4,100.3,100.8),open:100.6};
+  const analysis=analyse([...base(),touch,rejected]);
+  for(const macro of ['Bullish','Bearish','High Conflict','Unavailable']) assert.equal(makeTechnicalPlan(analysis,{isOpen:true,macro}).signal,'Resistance Rejection');
 });
 test('hourly and daily bars each require their own completed break and retest',()=>{
   for(const [interval,s] of [['1h',3600],['1day',86400]]){

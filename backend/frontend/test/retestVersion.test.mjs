@@ -9,6 +9,6 @@ test('new rules use a new audit key and leave original decisions unchanged',asyn
   const record=auditModule.createSignalAuditService({analyse:()=>({ready:true,lastTime:3600,confirmation:'Buy Watch'}),
     session:()=>({isOpen:true}),store:{async insertOnce(event){if(!saved.has(event.key))saved.set(event.key,event);return saved.get(event.key);},async recent(){return [...saved.values()];}}});
   const result=await record('1h',[{time:3600,close:101}]);
-  assert.equal(result.ruleVersion,'zones-retest-v3-technical-only'); assert.equal(result.analysis.confirmation,'Buy Watch');
+  assert.equal(result.ruleVersion,'zones-retest-v5-zone-reactions-technical-only'); assert.equal(result.analysis.confirmation,'Buy Watch');
   assert.equal(saved.size,2); assert.equal(saved.get(old.key),old);
 });

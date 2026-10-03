@@ -22,6 +22,36 @@ test('buy and sell confirmations include timeframe, trigger and technical invali
     assert.equal(result.confirmedAt, new Date(options.now).toISOString());
   }
 });
+test('confirmed support bounce alert uses support as trigger and invalidation zone', () => {
+  const audit = fixture();
+  audit.analysis.confirmation = 'Support Bounce';
+  audit.analysis.close = 100.5;
+  audit.analysis.setup.type = 'support-bounce';
+  audit.analysis.setup.startTime = audit.analysis.setup.breakTime;
+  audit.analysis.setup.touchedAt = audit.analysis.setup.startTime;
+  audit.analysis.setup.breakTime = null;
+  const result = buildTechnicalAlert(audit, options);
+  assert.equal(result.kind, 'technical-support-bounce-confirmed');
+  assert.equal(result.direction, 'buy');
+  assert.equal(result.trigger, 100);
+  assert.equal(result.invalidation.price, 99);
+  assert.match(result.body, /bullish reclaim/i);
+});
+test('confirmed resistance rejection alert uses resistance as trigger and invalidation zone', () => {
+  const audit = fixture('sell');
+  audit.analysis.confirmation = 'Resistance Rejection';
+  audit.analysis.close = 99.5;
+  audit.analysis.setup.type = 'resistance-rejection';
+  audit.analysis.setup.startTime = audit.analysis.setup.breakTime;
+  audit.analysis.setup.touchedAt = audit.analysis.setup.startTime;
+  audit.analysis.setup.breakTime = null;
+  const result = buildTechnicalAlert(audit, options);
+  assert.equal(result.kind, 'technical-resistance-rejection-confirmed');
+  assert.equal(result.direction, 'sell');
+  assert.equal(result.trigger, 100);
+  assert.equal(result.invalidation.price, 101);
+  assert.match(result.body, /bearish rejection/i);
+});
 test('refreshes have stable IDs; opposite macro inputs have no effect', () => {
   const audit = fixture();
   const first = buildTechnicalAlert(audit, options);

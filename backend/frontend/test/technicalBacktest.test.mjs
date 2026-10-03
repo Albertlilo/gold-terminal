@@ -35,6 +35,22 @@ test('gap stop fills at worse opening price, unfinished trades stay separate', (
   const result=backtestCandles([...rows,row(23,99,98,100,99)],'5min',options,session);
   assert.equal(result.trades[0].exit,99); assert.equal(result.openTrade,null);
 });
+test('support-bounce replay uses the support zone edge for invalidation', () => {
+  const touch=row(20,99.3,99.2,100,99.6);
+  const reclaim=row(21,99.8,99.3,100,99.4);
+  const result=backtestCandles([...Array.from({length:20},(_,i)=>row(i)),touch,reclaim,row(22,100,99.5,101,100)],'5min',options,session);
+  assert.equal(result.openTrade.direction,'buy');
+  assert.equal(result.openTrade.stop,99);
+  assert.equal(result.openTrade.signalTime,22*300);
+});
+test('resistance-rejection replay uses the resistance zone edge for invalidation', () => {
+  const touch=row(20,100.7,100.2,100.9,100.4);
+  const reject=row(21,100.4,100.3,100.8,100.6);
+  const result=backtestCandles([...Array.from({length:20},(_,i)=>row(i)),touch,reject,row(22,100.5,100.2,100.7,100.5)],'5min',options,session);
+  assert.equal(result.openTrade.direction,'sell');
+  assert.equal(result.openTrade.stop,101);
+  assert.equal(result.openTrade.signalTime,22*300);
+});
 test('risk reward rejects invalid directions and price ordering', () => {
   assert.equal(riskReward(100,99,102,'buy').ratio,2);
   assert.equal(riskReward(100,101,98,'sell').ratio,2);

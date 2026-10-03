@@ -2,7 +2,7 @@ export const ZONE_LOOKBACK = 20;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v3-technical-only";
+export const RULE_VERSION = "zones-retest-v5-zone-reactions-technical-only";
 export const NOISE_PERCENT = 0.1;
 
 export function buildZones(previous) {
@@ -28,11 +28,16 @@ export function confirmZones(completed) {
     const candle = completed[i];
     if (setup) {
       const zone = setup.direction === "buy" ? setup.zones.resistance : setup.zones.support;
-      const invalid = setup.direction === "buy" ? candle.close < zone.low : candle.close > zone.high;
+      const supportBounce = setup.type === "support-bounce";
+      const resistanceRejection = setup.type === "resistance-rejection";
+      const activeZone = supportBounce ? setup.zones.support : resistanceRejection ? setup.zones.resistance : zone;
+      const invalid = supportBounce ? candle.close < activeZone.low
+        : resistanceRejection ? candle.close > activeZone.high
+        : setup.direction === "buy" ? candle.close < zone.low : candle.close > zone.high;
       const phaseIndex = setup.confirmedIndex ?? setup.touchedIndex ?? setup.index;
       const phaseLimit = setup.confirmedIndex !== null ? CONFIRMATION_LIFETIME : setup.touchedIndex !== null ? RETEST_LIFETIME : SETUP_LIFETIME;
       if (invalid || i - phaseIndex >= phaseLimit) {
-        state = invalid ? "Retest invalidated" : "Setup expired";
+        state = invalid ? (supportBounce ? "Support bounce invalidated" : resistanceRejection ? "Resistance rejection invalidated" : "Retest invalidated") : "Setup expired";
         confirmation = "None";
         zones = setup.zones;
         setup = null;
@@ -40,17 +45,20 @@ export function confirmZones(completed) {
         continue;
       }
       zones = setup.zones;
-      const touched = candle.low <= zone.high && candle.high >= zone.low;
+      const touched = candle.low <= activeZone.high && candle.high >= activeZone.low;
       const beyond = clears(candle.close, setup.direction === "buy" ? zones.buy : zones.sell, setup.direction === "buy");
+      const reclaimedSupport = candle.close > activeZone.high && candle.close > candle.open;
+      const rejectedResistance = candle.close < activeZone.low && candle.close < candle.open;
       // Record the first later touch. Repeated touches never extend the deadline.
       if (setup.touchedIndex === null && touched) { setup.touchedIndex = i; setup.touchedAt = candle.time; }
       // Recovery can happen on the touch candle or on a later completed candle.
-      if (setup.confirmedIndex === null && setup.touchedIndex !== null && beyond) {
+      if (setup.confirmedIndex === null && setup.touchedIndex !== null && (supportBounce ? reclaimedSupport : resistanceRejection ? rejectedResistance : beyond)) {
         setup.confirmedAt = candle.time; setup.confirmedIndex = i;
       }
-      confirmation = setup.confirmedAt && beyond ? (setup.direction === "buy" ? "Buy Watch" : "Sell Watch") : "None";
-      state = setup.confirmedAt ? (beyond ? (setup.direction === "buy" ? "Successful retest" : "Failed support retest") : "Confirmation weakened")
-        : setup.touchedIndex !== null ? "Pullback developing"
+      const holdingConfirmation = supportBounce ? candle.close > activeZone.high : resistanceRejection ? candle.close < activeZone.low : beyond;
+      confirmation = setup.confirmedAt && holdingConfirmation ? (supportBounce ? "Support Bounce" : resistanceRejection ? "Resistance Rejection" : setup.direction === "buy" ? "Buy Watch" : "Sell Watch") : "None";
+      state = setup.confirmedAt ? (holdingConfirmation ? (supportBounce ? "Support bounce confirmed" : resistanceRejection ? "Resistance rejection confirmed" : setup.direction === "buy" ? "Successful retest" : "Failed support retest") : "Confirmation weakened")
+        : setup.touchedIndex !== null ? (supportBounce ? "Support bounce developing" : resistanceRejection ? "Resistance rejection developing" : "Pullback developing")
           : setup.direction === "buy" ? "Breakout · awaiting retest" : "Support break · awaiting retest";
       continue;
     }
@@ -61,10 +69,34 @@ export function confirmZones(completed) {
     if (buy || sell) {
       setup = { direction: buy ? "buy" : "sell", index: i, time: candle.time, zones, touchedIndex: null, touchedAt: null, confirmedAt: null, confirmedIndex: null };
       state = buy ? "Breakout · awaiting retest" : "Support break · awaiting retest";
-    } else { state = "Between zones"; }
+    } else {
+      const support = zones.support;
+      const prior = completed[i - 1];
+      const approachingSupport = prior.close > support.high && candle.low <= support.high && candle.close >= support.low;
+      if (approachingSupport) {
+        setup = { type: "support-bounce", direction: "buy", index: i, time: candle.time, zones,
+          touchedIndex: i, touchedAt: candle.time, confirmedAt: null, confirmedIndex: null };
+        const reclaimed = candle.close > support.high && candle.close > candle.open;
+        if (reclaimed) { setup.confirmedAt = candle.time; setup.confirmedIndex = i; }
+        confirmation = reclaimed ? "Support Bounce" : "None";
+        state = reclaimed ? "Support bounce confirmed" : "Support bounce developing";
+      } else {
+        const resistance = zones.resistance;
+        const approachingResistance = prior.close < resistance.low && candle.high >= resistance.low && candle.close <= resistance.high;
+        if (approachingResistance) {
+          setup = { type: "resistance-rejection", direction: "sell", index: i, time: candle.time, zones,
+            touchedIndex: i, touchedAt: candle.time, confirmedAt: null, confirmedIndex: null };
+          const rejected = candle.close < resistance.low && candle.close < candle.open;
+          if (rejected) { setup.confirmedAt = candle.time; setup.confirmedIndex = i; }
+          confirmation = rejected ? "Resistance Rejection" : "None";
+          state = rejected ? "Resistance rejection confirmed" : "Resistance rejection developing";
+        } else { state = "Between zones"; }
+      }
+    }
   }
   const phase = setup?.confirmedIndex !== null && setup?.confirmedIndex !== undefined ? "confirmed" : setup?.touchedIndex !== null && setup?.touchedIndex !== undefined ? "retest" : "waiting";
   const phaseLimit = phase === "confirmed" ? CONFIRMATION_LIFETIME : phase === "retest" ? RETEST_LIFETIME : SETUP_LIFETIME;
-  return { zones, state, confirmation, setup: setup ? { direction: setup.direction, breakTime: setup.time, touchedAt: setup.touchedAt, confirmedAt: setup.confirmedAt,
+  return { zones, state, confirmation, setup: setup ? { type: setup.type ?? "break-retest", direction: setup.direction, breakTime: ["support-bounce", "resistance-rejection"].includes(setup.type) ? null : setup.time,
+    startTime: setup.time, touchedAt: setup.touchedAt, confirmedAt: setup.confirmedAt,
     phase, barsRemaining: phaseLimit - (completed.length - 1 - (setup.confirmedIndex ?? setup.touchedIndex ?? setup.index)) } : null };
 }
