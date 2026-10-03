@@ -16,7 +16,7 @@ const getTwoYearYield = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -26,7 +26,7 @@ const getTenYearYield = async (req, res) => {
    );
     res.status(200).json(data);
 } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
 }
 };
 
@@ -50,7 +50,7 @@ const getYieldCurve = async (req, res) => {
       fetchedAt: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).send(error.massage);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 }
 
@@ -62,7 +62,7 @@ const getFedFundsRate = async (req, res) => {
     );
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 }
 
@@ -82,7 +82,7 @@ const getCpi = async (req, res) => {
       yearOverYearinflation
     });
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 }
 
@@ -94,7 +94,7 @@ const getUnemploymentRate = async (req, res) => {
     );
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 }
 
@@ -108,7 +108,7 @@ const getRetailSales = async (req, res) => {
     );
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 }
 
@@ -122,7 +122,7 @@ const getIndustrialProduction = async (req, res) => {
     );
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 }
 
@@ -136,7 +136,7 @@ const getConsumerSentiment = async (req, res) => {
     );
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 }
 
@@ -150,7 +150,7 @@ const getHousingStarts = async (req, res) => {
     );
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 }
 
@@ -165,7 +165,7 @@ const getRealGdp = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -180,7 +180,7 @@ const getInitialClaims = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -195,7 +195,7 @@ const getDollarIndex = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -210,7 +210,7 @@ const getM2MoneySupply = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -278,7 +278,7 @@ const getDashboardSummary = async (req, res) => {
       fetchedAt: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -293,7 +293,7 @@ const getTenYearRealYield = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -308,7 +308,7 @@ const getFiveYearBreakevenInflation = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -323,7 +323,7 @@ const getTenYearBreakevenInflation = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -338,7 +338,7 @@ const getOilPrice = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -353,7 +353,7 @@ const getFinancialStress = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -368,7 +368,7 @@ const getVix = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -383,7 +383,7 @@ const getHighYieldSpread = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -398,7 +398,7 @@ const getReverseRepo = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -413,7 +413,7 @@ const getTreasuryGeneralAccount = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -464,7 +464,7 @@ const getGoldScore = async (req, res) => {
 
     res.status(200).json(result);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -498,7 +498,7 @@ res.status(200).json({
   observations: data.observations
 });
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -533,7 +533,7 @@ res.status(200).json({
   observations: data.observations
 });
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -558,7 +558,7 @@ const getCorePce = async (req, res) => {
       yearOverYearInflation
     });
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -583,7 +583,7 @@ const getPpi = async (req, res) => {
       yearOverYearInflation
     });
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 
@@ -593,7 +593,7 @@ const getDashboard = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };
 

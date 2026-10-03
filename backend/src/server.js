@@ -1,13 +1,13 @@
-const cors = require("cors");
+require("dotenv").config();
 const express = require("express");
+const { installHttpSecurity, safeErrors } = require('./services/httpSecurity');
 
 const app = express();
 
-app.use(cors());
+installHttpSecurity(app);
 app.use(express.json({ limit: '16kb' }));
 const fredRoutes = require("./routes/fredRoutes");
 
-require("dotenv").config();
 
 const usersRouters = require("./routes/usersRoutes");
 
@@ -31,6 +31,8 @@ app.use('/api/preview', require('./routes/previewRoutes'));
 app.use("/api/fred", fredRoutes);
 app.use("/api/market", require("./routes/marketRoutes"));
 app.use("/api/push", require("./routes/pushRoutes").createPushRouter());
+app.use((req, res) => res.status(404).json({ message: 'Endpoint not found.' }));
+app.use(safeErrors);
 
 const stopPushScheduler = require("./services/pushRuntime").startScheduler();
 process.once('SIGTERM', stopPushScheduler);
