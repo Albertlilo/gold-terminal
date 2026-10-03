@@ -73,25 +73,25 @@ export function confirmZones(completed) {
       const support = zones.support;
       const prior = completed[i - 1];
       const approachingSupport = prior.close > support.high && candle.low <= support.high && candle.close >= support.low;
-      if (approachingSupport) {
+      const resistance = zones.resistance;
+      const approachingResistance = prior.close < resistance.low && candle.high >= resistance.low && candle.close <= resistance.high;
+      if (approachingSupport && approachingResistance) {
+        state = "Conflicting zone touches · wait";
+      } else if (approachingSupport) {
         setup = { type: "support-bounce", direction: "buy", index: i, time: candle.time, zones,
           touchedIndex: i, touchedAt: candle.time, confirmedAt: null, confirmedIndex: null };
         const reclaimed = candle.close > support.high && candle.close > candle.open;
         if (reclaimed) { setup.confirmedAt = candle.time; setup.confirmedIndex = i; }
         confirmation = reclaimed ? "Support Bounce" : "None";
         state = reclaimed ? "Support bounce confirmed" : "Support bounce developing";
-      } else {
-        const resistance = zones.resistance;
-        const approachingResistance = prior.close < resistance.low && candle.high >= resistance.low && candle.close <= resistance.high;
-        if (approachingResistance) {
-          setup = { type: "resistance-rejection", direction: "sell", index: i, time: candle.time, zones,
-            touchedIndex: i, touchedAt: candle.time, confirmedAt: null, confirmedIndex: null };
-          const rejected = candle.close < resistance.low && candle.close < candle.open;
-          if (rejected) { setup.confirmedAt = candle.time; setup.confirmedIndex = i; }
-          confirmation = rejected ? "Resistance Rejection" : "None";
-          state = rejected ? "Resistance rejection confirmed" : "Resistance rejection developing";
-        } else { state = "Between zones"; }
-      }
+      } else if (approachingResistance) {
+        setup = { type: "resistance-rejection", direction: "sell", index: i, time: candle.time, zones,
+          touchedIndex: i, touchedAt: candle.time, confirmedAt: null, confirmedIndex: null };
+        const rejected = candle.close < resistance.low && candle.close < candle.open;
+        if (rejected) { setup.confirmedAt = candle.time; setup.confirmedIndex = i; }
+        confirmation = rejected ? "Resistance Rejection" : "None";
+        state = rejected ? "Resistance rejection confirmed" : "Resistance rejection developing";
+      } else { state = "Between zones"; }
     }
   }
   const phase = setup?.confirmedIndex !== null && setup?.confirmedIndex !== undefined ? "confirmed" : setup?.touchedIndex !== null && setup?.touchedIndex !== undefined ? "retest" : "waiting";

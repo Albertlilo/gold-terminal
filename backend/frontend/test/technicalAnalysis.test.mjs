@@ -133,6 +133,15 @@ test('resistance rejection remains independent of macro context',()=>{
   const analysis=analyse([...base(),touch,rejected]);
   for(const macro of ['Bullish','Bearish','High Conflict','Unavailable']) assert.equal(makeTechnicalPlan(analysis,{isOpen:true,macro}).signal,'Resistance Rejection');
 });
+test('a wide candle touching both zones stays neutral instead of choosing a side',()=>{
+  const wide={...row(20,100,99.2,100.8),open:99.8};
+  const analysis=analyse([...base(),wide]);
+  assert.equal(analysis.state,'Conflicting zone touches · wait');
+  assert.equal(analysis.confirmation,'None');
+  assert.equal(analysis.setup,null);
+  assert.equal(makeTechnicalPlan(analysis,{isOpen:true}).signal,'Wait');
+  assert.match(makeTechnicalPlan(analysis,{isOpen:true}).reason,/spanned both support and resistance/i);
+});
 test('hourly and daily bars each require their own completed break and retest',()=>{
   for(const [interval,s] of [['1h',3600],['1day',86400]]){
     const a=analyse([...base(s),row(20,102,100,103,s),row(21,101.5,100.9,102,s)],interval,s);

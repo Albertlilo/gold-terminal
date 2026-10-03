@@ -41,6 +41,7 @@ export function makeTechnicalPlan(analysis, { isOpen }) {
     : resistanceRejection && signal === "Resistance Rejection" ? "A completed candle touched resistance and closed bearishly back below the resistance zone. This is a technical resistance-rejection confirmation, separate from macro bias and breakout/retest watches."
     : resistanceRejection && analysis.state === "Resistance rejection developing" ? "Price has touched the resistance zone. Wait for a completed bearish close back below its lower edge; a touch alone is not confirmation."
     : resistanceRejection && analysis.state === "Resistance rejection invalidated" ? "A completed candle closed above the upper edge of the resistance zone. The resistance-rejection setup is invalidated."
+    : analysis.state === "Conflicting zone touches · wait" ? "One completed candle spanned both support and resistance zones. The reaction is ambiguous, so no directional setup is assigned; wait for clearer price action."
     : signal !== "Wait" ? "The completed-candle break and retest conditions are confirmed. A watch setup is not an executed trade."
     : analysis.state === "Retest invalidated" ? "The setup failed: a completed candle closed through the far edge of the retested zone. Wait for a new break and retest."
     : analysis.state === "Setup expired" ? "The setup reached its phase limit: 10 candles to touch, 10 candles from the first touch to recover, or 10 candles after confirmation. A new break and retest is required."
