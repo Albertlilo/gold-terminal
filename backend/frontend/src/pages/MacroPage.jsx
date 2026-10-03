@@ -1,3 +1,4 @@
+import { formatMacroValue } from "../lib/macroFormat.mjs";
 import PageHeader from "../components/PageHeader";
 import DashboardSection from "../components/DashboardSection";
 
@@ -10,24 +11,16 @@ const sections = [
   ['Risk', 'Financial Conditions', [['VIX', 'risk.vix'], ['Financial Stress', 'risk.financialStress'], ['High-Yield Spread', 'risk.highYieldSpread'], ['Dollar', 'currency.dollarIndex']]]
 ];
 
-function formatValue(value, display) {
-  if (!Number.isFinite(value)) return 'Unavailable';
-  return `${value.toLocaleString('en-GB', {
-    minimumFractionDigits: display.decimals, maximumFractionDigits: display.decimals,
-    signDisplay: display.signed ? 'exceptZero' : 'auto'
-  })} ${display.unit}`;
-}
-
 function MacroMetric({ label, observation }) {
   const display = observation?.display;
   const checked = display?.checkedAt ? new Date(display.checkedAt) : null;
   return <div className="card macro-metric">
     <span>{label}</span>
-    <h2>{display ? formatValue(display.value, display) : 'Unavailable'}</h2>
+    <h2>{display ? formatMacroValue(display.value, display) : 'Unavailable'}</h2>
     <p>{display?.description ?? 'Waiting for economic data with verified units.'}</p>
     {display && <>
       <p>Period: <strong>{observation.date}</strong></p>
-      <p>Previous: {formatValue(display.previousValue, display)}{display.previousDate ? ` (${display.previousDate})` : ''}</p>
+      <p>Previous: {formatMacroValue(display.previousValue, display)}{display.previousDate ? ` (${display.previousDate})` : ''}</p>
       <small>{display.status}. Figures can be revised.</small>
       <p><a href={display.sourceUrl} target="_blank" rel="noreferrer">FRED · {display.seriesId}</a></p>
       <small>Source checked: {checked && Number.isFinite(checked.getTime()) ? checked.toLocaleString('en-GB', { timeZone: 'UTC' }) + ' UTC' : 'unknown'}</small>

@@ -1,3 +1,4 @@
+import { formatMacroObservation } from "../lib/macroFormat.mjs";
 import PageHeader from "../components/PageHeader";
 import DashboardSection from "../components/DashboardSection";
 import MetricCard from "../components/MetricCard";
@@ -9,14 +10,6 @@ function HomePage({
   goldPrice,
   goldScore,
   goldSummary,
-  dollarIndex,
-  tenYearYield,
-  realYield,
-  inflation,
-  fedFunds,
-  unemployment,
-  vix,
-  m2,
   goldMovement,
   goldChange,
   goldChangePercent,
@@ -24,49 +17,46 @@ function HomePage({
   sessionLow,
   sessionRange,
 }) {
+  const dollarIndex = formatMacroObservation(dashboardData?.currency?.dollarIndex);
+  const tenYearYield = formatMacroObservation(dashboardData?.rates?.tenYear);
+  const realYield = formatMacroObservation(dashboardData?.realYields?.tenYearRealYield);
+  const inflation = formatMacroObservation(dashboardData?.inflation?.tenYearBreakeven);
+  const fedFunds = formatMacroObservation(dashboardData?.rates?.fedFunds);
+  const unemployment = formatMacroObservation(dashboardData?.labour?.unemploymentRate);
+  const vix = formatMacroObservation(dashboardData?.risk?.vix);
+  const m2 = formatMacroObservation(dashboardData?.liquidity?.m2MoneySupply);
   const score = dashboardData?.gold?.score;
 
   const bias = score?.bias ?? "--";
   const confidence = score?.confidence ?? "--";
   const lean = score?.lean ?? "--";
 
-  const twoYear =
-    dashboardData?.rates?.twoYear?.value ?? "--";
+  const twoYear = formatMacroObservation(dashboardData?.rates?.twoYear);
 
   const yieldCurve =
   typeof dashboardData?.rates?.yieldCurveSpread === "number"
-    ? dashboardData.rates.yieldCurveSpread.toFixed(2)
+    ? `${dashboardData.rates.yieldCurveSpread.toFixed(2)} pp`
     : "--";
 
-  const fiveYearBreakeven =
-    dashboardData?.inflation?.fiveYearBreakeven?.value ?? "--";
+  const fiveYearBreakeven = formatMacroObservation(dashboardData?.inflation?.fiveYearBreakeven);
 
-  const corePce =
-    dashboardData?.inflation?.corePce?.value ?? "--";
+  const corePce = formatMacroObservation(dashboardData?.inflation?.corePce);
 
-  const ppi =
-    dashboardData?.inflation?.ppi?.value ?? "--";
+  const ppi = formatMacroObservation(dashboardData?.inflation?.ppi);
 
-  const highYieldSpread =
-    dashboardData?.risk?.highYieldSpread?.value ?? "--";
+  const highYieldSpread = formatMacroObservation(dashboardData?.risk?.highYieldSpread);
 
-  const financialStress =
-    dashboardData?.risk?.financialStress?.value ?? "--";
+  const financialStress = formatMacroObservation(dashboardData?.risk?.financialStress);
 
-  const nonfarmPayrolls =
-    dashboardData?.labour?.nonfarmPayrolls?.value ?? "--";
+  const nonfarmPayrolls = formatMacroObservation(dashboardData?.labour?.nonfarmPayrolls);
 
-  const adpEmployment =
-    dashboardData?.labour?.adpEmployment?.value ?? "--";
+  const adpEmployment = formatMacroObservation(dashboardData?.labour?.adpEmployment);
 
-  const initialClaims =
-    dashboardData?.consumerHousing?.initialClaims?.value ?? "--";
+  const initialClaims = formatMacroObservation(dashboardData?.consumerHousing?.initialClaims);
 
-  const reverseRepo =
-    dashboardData?.liquidity?.reverseRepo?.value ?? "--";
+  const reverseRepo = formatMacroObservation(dashboardData?.liquidity?.reverseRepo);
 
-  const treasuryGeneralAccount =
-    dashboardData?.liquidity?.treasuryGeneralAccount?.value ?? "--";
+  const treasuryGeneralAccount = formatMacroObservation(dashboardData?.liquidity?.treasuryGeneralAccount);
 
   const strongestBullish =
     dashboardData?.gold?.topBullishDrivers?.[0];
@@ -393,11 +383,11 @@ function HomePage({
               value: inflation,
             },
             {
-              label: "Core PCE",
+              label: "Core PCE · YoY",
               value: corePce,
             },
             {
-              label: "PPI",
+              label: "PPI · All commodities",
               value: ppi,
             },
           ]}
@@ -505,12 +495,12 @@ function HomePage({
             />
 
             <HomeStat
-              label="Nonfarm Payrolls"
+              label="NFP · monthly change"
               value={nonfarmPayrolls}
             />
 
             <HomeStat
-              label="ADP Employment"
+              label="ADP · monthly change"
               value={adpEmployment}
             />
 
