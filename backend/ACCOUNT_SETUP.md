@@ -74,23 +74,65 @@ no authority to subscribe a device or access the premium HTTP endpoints.
 - The frontend shows the preview until access is verified and rechecks each minute.
   The backend enforces access on every request regardless of what UI is visible.
 
-## Subscription records — billing is not live
+## Free accounts and Pro billing
 
 Atlas collection `account_access` uses Firebase UID as `_id`. Only a server-side
 process with database permissions may write it. No client grant/update endpoint
-exists. The owner UID allowlist gives you access without paying yourself.
+exists. The owner UID allowlist gives you access without paying yourself. Anyone
+can create their own free Firebase account; signup does not charge them or require
+a payment card. Free users retain the public preview, while protected analysis and
+alert features require Pro.
 
-Future verified billing webhooks must maintain records like:
+Access requires `status === active` and a future valid `paidThrough`. Billing
+records retain the Stripe customer/subscription IDs and cancellation state. The
+server verifies Stripe webhook signatures and fetches the current subscription
+before changing access; a checkout return page never grants Pro by itself.
 
-```json
-{"_id":"FIREBASE_UID","status":"active","paidThrough":"2026-11-01T00:00:00.000Z"}
-```
+### Configure Stripe in test mode first
 
-Access requires `status === active` and a future valid `paidThrough`. Cancellation
-at period end should retain active access until paidThrough; immediate cancellation
-or revocation should change status. This is an access foundation, not a Stripe
-integration: no checkout, customer portal, webhook reconciliation or real charging
-is enabled. Never sell subscriptions until payment lifecycle tests are complete.
+1. In Stripe onboarding, choose **Create subscriptions**, then **Let us handle it**
+   for Managed Payments. Checkout explicitly enables that option. It adds 3.5% per
+   successful transaction on top of regular card-processing and subscription fees.
+   It handles eligible indirect sales taxes and dispute/customer-support workflows,
+   but does not replace your own income-tax or company-tax obligations.
+2. Create a recurring **GBP £25.00 monthly** Price for Trendline Insight Pro in
+   Stripe. Copy its Price ID (`price_...`). The server checks currency, amount and
+   monthly interval before opening checkout.
+3. In Stripe Developers → API keys, copy the **test secret key**. Keep it out of
+   frontend variables, source code, Git, and chat.
+4. Create a webhook endpoint pointing to
+   `https://YOUR-API-HOST/api/billing/webhook` and subscribe it to
+   `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated`, `customer.subscription.deleted`,
+   `invoice.paid`, and `invoice.payment_failed`. Copy its signing secret.
+5. Add these to the **Render backend service** environment, preserving existing
+   values. `BILLING_APP_ORIGIN` is your public website origin without a path.
+
+| Variable | Value |
+| --- | --- |
+| `STRIPE_SECRET_KEY` | Stripe test secret key (`sk_test_...`) |
+| `STRIPE_PRO_PRICE_ID` | Recurring GBP £25/month Price ID (`price_...`) |
+| `STRIPE_WEBHOOK_SECRET` | This endpoint's signing secret (`whsec_...`) |
+| `BILLING_APP_ORIGIN` | The website's exact public origin, e.g. `https://your-site.onrender.com` |
+
+6. Deploy and test successful and failed payments, cancellation at period end,
+   immediate cancellation, renewal, portal access, webhook retries, and that free
+   users remain free. Confirm results in Stripe and Atlas `account_access` before
+   inviting customers or switching to live keys.
+7. For real payments, use live-mode Price, API key and webhook secret. Complete
+   Stripe's account verification and add your bank account in Stripe Dashboard's
+   business payout settings. The exact menu labels can vary by region/account.
+   The app never asks for or stores your bank details; Stripe pays out to the bank
+   account configured there.
+
+Enable the Stripe customer portal in Stripe Dashboard before using **Manage
+billing**, and configure cancellation at period end if that is your chosen policy.
+Checkout and portal pages are hosted by Stripe. In Managed Payments settings,
+choose whether Stripe should email you for approval on each refund request or
+automatically refund requests that meet its eligibility rules. You can still
+respond to customers and issue refunds yourself. Review refund policy, consumer
+terms and required business details before taking live payments. Do not enable
+live billing until test lifecycle and webhook events pass.
 
 ## Verification
 

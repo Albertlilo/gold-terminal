@@ -45,6 +45,10 @@ module.exports = {
     await pushIndexes.get(name);
     return collection;
   },
+  async getBillingEventsCollection() {
+    await getCollection();
+    return database.collection('billing_events');
+  },
   async getAuditCollection() {
     await getCollection();
     if (!auditIndex) auditIndex = auditCollection.createIndex({ interval: 1, candleTime: -1 }).catch(error => { auditIndex = null; throw error; });

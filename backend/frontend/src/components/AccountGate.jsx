@@ -23,7 +23,11 @@ function FreePreview() {
 }
 export default function AccountGate({ children }) {
   const [user,setUser] = useState(null), [profile,setProfile] = useState(null), [ready,setReady] = useState(false);
-  const [message,setMessage] = useState(''), [busy,setBusy] = useState(false);
+  const [message,setMessage] = useState(() => {
+    const billingState = new URLSearchParams(window.location.search).get('billing');
+    return billingState === 'success' ? 'Checkout returned successfully. Pro turns on after Stripe confirms the payment; choose Refresh access in a moment.'
+      : billingState === 'cancelled' ? 'Checkout was cancelled. Your free account is unchanged.' : '';
+  }), [busy,setBusy] = useState(false);
   const [email,setEmail] = useState(''), [password,setPassword] = useState('');
   useEffect(() => {
     let alive=true, unsubscribe, generation=0;
@@ -47,6 +51,23 @@ export default function AccountGate({ children }) {
     },60000);
     return ()=>{alive=false;generation++;unsubscribe?.();clearInterval(timer);};
   },[]);
+  useEffect(() => {
+    const billingState = new URLSearchParams(window.location.search).get('billing');
+    if (billingState) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('billing');
+      window.history.replaceState({}, '', url);
+    }
+  },[]);
+  async function billing(action) {
+    setBusy(true); setMessage('');
+    try {
+      const response = await accountFetch(`${API}/api/billing/${action}`, { method: 'POST', signal: AbortSignal.timeout(30000) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Billing could not be opened.');
+      window.location.assign(data.url);
+    } catch(error) { setMessage(error.message); setBusy(false); }
+  }
   async function act(action) {
     setBusy(true);setMessage('');
     try {
@@ -87,6 +108,8 @@ export default function AccountGate({ children }) {
       {user ? <><p>{user.email} · {profile?.premium ? profile.role==='owner'?'Owner access':'Pro access active':'Pro access not active'}</p>
         <p className="analysis-method">Account ID: {user.uid}</p>
         <button disabled={busy} onClick={()=>act('refresh')}>Refresh access</button>
+        {profile?.role !== 'owner' && profile?.hasBillingCustomer && <button disabled={busy} onClick={()=>billing('portal')}>Manage billing</button>}
+        {user.emailVerified && profile?.role !== 'owner' && !profile?.premium && <button disabled={busy} onClick={()=>billing('checkout')}>Upgrade to Pro · £25/month</button>}
         {!user.emailVerified && <button disabled={busy} onClick={()=>act('verify')}>Send verification email</button>}
         <button disabled={busy} onClick={()=>act('logout')}>Sign out</button></> : <>
         <div className="phone-alert-fields"><label>Email<input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} /></label>
@@ -94,7 +117,7 @@ export default function AccountGate({ children }) {
         <div className="phone-alert-actions"><button disabled={!ready||busy} onClick={()=>act('login')}>Sign in</button><button disabled={!ready||busy} onClick={()=>act('signup')}>Create account</button><button disabled={!ready||busy} onClick={()=>act('google')}>Continue with Google</button><button disabled={!ready||busy||!email} onClick={()=>act('reset')}>Reset password</button></div>
       </>}
       <p role="status">{busy?'Working…':message}</p>
-      {!profile?.premium && <p>Pro is planned at £25/month. Checkout is not open yet. Creating an account does not charge you or unlock Pro.</p>}
+      <p>Free account: sign up at no cost for the free preview. Pro: £25/month; secure checkout and billing management are handled by Stripe. You can keep using the free preview without adding payment details.</p>
     </section>
     {profile?.premium ? <div key={user.uid}>{children}</div> : <div className="account-preview"><FreePreview /></div>}
   </>;

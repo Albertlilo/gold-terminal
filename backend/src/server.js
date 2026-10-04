@@ -5,6 +5,7 @@ const { installHttpSecurity, safeErrors } = require('./services/httpSecurity');
 const app = express();
 
 installHttpSecurity(app);
+app.use('/api/billing', require('./routes/billingRoutes'));
 app.use(express.json({ limit: '16kb' }));
 const fredRoutes = require("./routes/fredRoutes");
 
