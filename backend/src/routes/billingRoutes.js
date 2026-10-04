@@ -58,14 +58,22 @@ router.post('/checkout', account.authenticate, async (req, res) => {
       return res.status(503).json({ message: 'The configured Pro price must be an active £25/month GBP subscription.' });
     }
     const metadata = { firebaseUid: req.account.uid };
+    const trialEligible = Boolean(access.trialEligible && !grant?.stripeSubscriptionId && !grant?.trialUsedAt);
     const session = await client.checkout.sessions.create({
       mode: 'subscription',
       managed_payments: { enabled: true },
+      payment_method_collection: 'always',
       line_items: [{ price: price.id, quantity: 1 }],
       ...(grant?.stripeCustomerId ? { customer: grant.stripeCustomerId } : { customer_email: req.account.email }),
       client_reference_id: req.account.uid,
       metadata,
-      subscription_data: { metadata },
+      subscription_data: {
+        metadata,
+        ...(trialEligible ? {
+          trial_period_days: 7,
+          trial_settings: { end_behavior: { missing_payment_method: 'cancel' } },
+        } : {}),
+      },
       success_url: `${origin}/?billing=success`,
       cancel_url: `${origin}/?billing=cancelled`,
     });

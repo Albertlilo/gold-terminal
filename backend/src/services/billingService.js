@@ -17,8 +17,9 @@ function createBillingService({ stripe, accessCollection, eventCollection, proPr
     const paidThrough = periods.length && periods.every(value => Number.isFinite(value) && value > 0)
       ? Math.min(...periods)
       : !proPriceId && !Array.isArray(items) ? Number(subscription.current_period_end) : NaN;
-    const accessUntil = Number.isFinite(paidThrough) && paidThrough > 0 ? new Date(paidThrough * 1000) : null;
-    const active = subscription.status === 'active' && accessUntil && accessUntil.getTime() > now();
+    const accessTimestamp = subscription.status === 'trialing' ? Number(subscription.trial_end) : paidThrough;
+    const accessUntil = Number.isFinite(accessTimestamp) && accessTimestamp > 0 ? new Date(accessTimestamp * 1000) : null;
+    const active = ['active', 'trialing'].includes(subscription.status) && accessUntil && accessUntil.getTime() > now();
     await accessCollection.updateOne({ _id: uid }, { $set: {
       status: active ? 'active' : 'inactive',
       paidThrough: accessUntil,
@@ -27,6 +28,7 @@ function createBillingService({ stripe, accessCollection, eventCollection, proPr
       stripeSubscriptionId: subscription.id,
       cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
       billingUpdatedAt: new Date(now()),
+      ...(Number(subscription.trial_start) > 0 ? { trialUsedAt: new Date(Number(subscription.trial_start) * 1000) } : {}),
     } }, { upsert: true });
   }
 

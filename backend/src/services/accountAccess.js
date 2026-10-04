@@ -1,12 +1,13 @@
 function createAccountAccess({ verify, readGrant, owners = () => [], now = Date.now }) {
   async function entitlement(uid) {
-    if (owners().includes(uid)) return { premium: true, role: 'owner', hasBillingCustomer: false };
+    if (owners().includes(uid)) return { premium: true, role: 'owner', hasBillingCustomer: false, trialEligible: false };
     const grant = await readGrant(uid);
     const paidThrough = grant?.paidThrough instanceof Date ? grant.paidThrough.getTime() : Date.parse(grant?.paidThrough);
     const premium = grant?.status === 'active' && Number.isFinite(paidThrough) && paidThrough > now();
     return { premium, role: 'member', paidThrough: Number.isFinite(paidThrough) ? new Date(paidThrough).toISOString() : null,
       billingStatus: grant?.billingStatus || null, cancelAtPeriodEnd: Boolean(grant?.cancelAtPeriodEnd),
-      hasBillingCustomer: Boolean(grant?.stripeCustomerId) };
+      hasBillingCustomer: Boolean(grant?.stripeCustomerId),
+      trialEligible: !grant?.stripeSubscriptionId && !grant?.trialUsedAt };
   }
   async function authenticate(req, res, next) {
     res.set('Cache-Control', 'no-store');

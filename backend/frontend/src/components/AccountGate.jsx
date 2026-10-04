@@ -109,7 +109,7 @@ export default function AccountGate({ children }) {
         <p className="analysis-method">Account ID: {user.uid}</p>
         <button disabled={busy} onClick={()=>act('refresh')}>Refresh access</button>
         {profile?.role !== 'owner' && profile?.hasBillingCustomer && <button disabled={busy} onClick={()=>billing('portal')}>Manage billing</button>}
-        {user.emailVerified && profile?.role !== 'owner' && !profile?.premium && <button disabled={busy} onClick={()=>billing('checkout')}>Upgrade to Pro · £25/month</button>}
+        {user.emailVerified && profile?.role !== 'owner' && !profile?.premium && <button disabled={busy} onClick={()=>billing('checkout')}>{profile?.trialEligible ? 'Start 7-day free trial' : 'Subscribe to Pro · £25/month'}</button>}
         {!user.emailVerified && <button disabled={busy} onClick={()=>act('verify')}>Send verification email</button>}
         <button disabled={busy} onClick={()=>act('logout')}>Sign out</button></> : <>
         <div className="phone-alert-fields"><label>Email<input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} /></label>
@@ -117,7 +117,7 @@ export default function AccountGate({ children }) {
         <div className="phone-alert-actions"><button disabled={!ready||busy} onClick={()=>act('login')}>Sign in</button><button disabled={!ready||busy} onClick={()=>act('signup')}>Create account</button><button disabled={!ready||busy} onClick={()=>act('google')}>Continue with Google</button><button disabled={!ready||busy||!email} onClick={()=>act('reset')}>Reset password</button></div>
       </>}
       <p role="status">{busy?'Working…':message}</p>
-      <p>Free account: sign up at no cost for the free preview. Pro: £25/month; secure checkout and billing management are handled by Stripe. You can keep using the free preview without adding payment details.</p>
+      <p>Eligible new Pro accounts get 7 days free, then £25/month plus applicable tax. A payment method is required at signup; billing starts automatically when the trial ends unless you cancel before then.</p>
     </section>
     {profile?.premium ? <div key={user.uid}>{children}</div> : <div className="account-preview"><FreePreview /></div>}
   </>;
