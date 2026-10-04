@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createBillingService } = require('../src/services/billingService');
 
-function harness(subscription) {
+function harness(subscription, proPriceId) {
   const grants = new Map(), events = new Map();
   const accessCollection = { async updateOne(filter, update) { grants.set(filter._id, { _id: filter._id, ...update.$set }); } };
   const eventCollection = {
@@ -10,7 +10,7 @@ function harness(subscription) {
     async updateOne(filter, update) { events.set(filter._id, { _id: filter._id, ...update.$set }); },
   };
   const stripe = { subscriptions: { async retrieve() { return subscription; } } };
-  const service = createBillingService({ stripe, accessCollection, eventCollection, now: () => 1_800_000_000_000 });
+  const service = createBillingService({ stripe, accessCollection, eventCollection, proPriceId, now: () => 1_800_000_000_000 });
   return { service, grants, events };
 }
 
@@ -40,6 +40,30 @@ test('checkout completion maps the Firebase account and repeated webhook deliver
   await service.handleEvent(event);
   assert.equal(grants.get('uid_3').status, 'active');
   assert.equal(events.get('evt_3').status, 'processed');
+});
+
+test('current Stripe item periods grant Pro without borrowing another product expiry', async () => {
+  const { service, grants } = harness({ id: 'sub_modern', status: 'active', customer: 'cus_1',
+    metadata: { firebaseUid: 'uid_1' }, items: { data: [
+      { price: { id: 'price_other' }, current_period_end: 2_000_000_000 },
+      { price: { id: 'price_pro' }, current_period_end: 1_900_000_000 },
+    ] } }, 'price_pro');
+  await service.handleEvent({ id: 'evt_modern', type: 'invoice.paid', data: {
+    object: { parent: { subscription_details: { subscription: 'sub_modern' } } },
+  } });
+  assert.equal(grants.get('uid_1').status, 'active');
+  assert.equal(grants.get('uid_1').paidThrough.getTime(), 1_900_000_000_000);
+});
+
+test('missing, expired, invalid or unrelated Pro items never unlock access', async () => {
+  for (const data of [[], [{ price: { id: 'price_other' }, current_period_end: 1_900_000_000 }],
+    [{ price: { id: 'price_pro' } }], [{ price: { id: 'price_pro' }, current_period_end: 'invalid' }],
+    [{ price: { id: 'price_pro' }, current_period_end: 1_700_000_000 }]]) {
+    const { service, grants } = harness({ id: 'sub_1', status: 'active', customer: 'cus_1',
+      metadata: { firebaseUid: 'uid_1' }, items: { data } }, 'price_pro');
+    await service.handleEvent({ id: 'evt_1', type: 'customer.subscription.updated', data: { object: { id: 'sub_1' } } });
+    assert.equal(grants.get('uid_1').status, 'inactive');
+  }
 });
 
 test('a subscription without an account mapping fails closed for Stripe retry', async () => {

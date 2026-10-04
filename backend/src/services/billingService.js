@@ -1,4 +1,4 @@
-function createBillingService({ stripe, accessCollection, eventCollection, now = Date.now }) {
+function createBillingService({ stripe, accessCollection, eventCollection, proPriceId, now = Date.now }) {
   async function recordEvent(event, status, error) {
     await eventCollection.updateOne({ _id: event.id }, { $set: {
       type: event.type, status, receivedAt: new Date(now()),
@@ -9,8 +9,15 @@ function createBillingService({ stripe, accessCollection, eventCollection, now =
   async function saveSubscription(subscription, fallbackUid) {
     const uid = subscription.metadata?.firebaseUid || subscription.metadata?.firebase_uid || fallbackUid;
     if (!uid) throw new Error('Subscription is missing its account reference');
-    const paidThrough = Number(subscription.current_period_end);
-    const accessUntil = Number.isFinite(paidThrough) ? new Date(paidThrough * 1000) : null;
+    // Current Stripe versions put billing periods on subscription items. Only
+    // the configured Pro price may grant access; unrelated items cannot extend it.
+    const items = subscription.items?.data;
+    const proItems = Array.isArray(items) ? items.filter(item => !proPriceId || item.price?.id === proPriceId) : [];
+    const periods = proItems.map(item => Number(item.current_period_end ?? subscription.current_period_end));
+    const paidThrough = periods.length && periods.every(value => Number.isFinite(value) && value > 0)
+      ? Math.min(...periods)
+      : !proPriceId && !Array.isArray(items) ? Number(subscription.current_period_end) : NaN;
+    const accessUntil = Number.isFinite(paidThrough) && paidThrough > 0 ? new Date(paidThrough * 1000) : null;
     const active = subscription.status === 'active' && accessUntil && accessUntil.getTime() > now();
     await accessCollection.updateOne({ _id: uid }, { $set: {
       status: active ? 'active' : 'inactive',

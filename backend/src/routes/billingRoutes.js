@@ -31,7 +31,7 @@ router.post('/webhook', express.raw({ type: 'application/json', limit: '1mb' }),
   try { event = stripe().webhooks.constructEvent(req.body, signature, process.env.STRIPE_WEBHOOK_SECRET); }
   catch { return res.status(400).send('Invalid webhook signature.'); }
   try {
-    const service = createBillingService({ stripe: stripe(),
+    const service = createBillingService({ stripe: stripe(), proPriceId: process.env.STRIPE_PRO_PRICE_ID,
       accessCollection: await store.getAccessCollection(), eventCollection: await store.getBillingEventsCollection() });
     await service.handleEvent(event);
     res.json({ received: true });
