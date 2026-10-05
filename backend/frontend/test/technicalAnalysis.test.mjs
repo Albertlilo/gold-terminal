@@ -133,6 +133,25 @@ test('resistance rejection remains independent of macro context',()=>{
   const analysis=analyse([...base(),touch,rejected]);
   for(const macro of ['Bullish','Bearish','High Conflict','Unavailable']) assert.equal(makeTechnicalPlan(analysis,{isOpen:true,macro}).signal,'Resistance Rejection');
 });
+test('a confirmed support bounce supersedes an older active resistance rejection',()=>{
+  const resistanceTouch={...row(20,100.7,100.2,100.9),open:100.4};
+  const supportBounce={...row(21,99.8,99.2,100),open:99.4};
+  const a=analyse([...base(),resistanceTouch,supportBounce]);
+  assert.equal(a.setup.type,'support-bounce');
+  assert.equal(a.state,'Support bounce confirmed');
+  assert.equal(a.confirmation,'Support Bounce');
+  assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Support Bounce');
+});
+test('a resistance rejection supersedes an older active support bounce',()=>{
+  const supportTouch={...row(20,99.3,99.2,100),open:99.6};
+  const supportHold={...row(21,99.4,99.2,100),open:99.6};
+  const resistanceReject={...row(22,100.4,100.2,100.9),open:100.6};
+  const a=analyse([...base(),supportTouch,supportHold,resistanceReject]);
+  assert.equal(a.setup.type,'resistance-rejection');
+  assert.equal(a.state,'Resistance rejection confirmed');
+  assert.equal(a.confirmation,'Resistance Rejection');
+  assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Resistance Rejection');
+});
 test('a wide candle touching both zones stays neutral instead of choosing a side',()=>{
   const wide={...row(20,100,99.2,100.8),open:99.8};
   const analysis=analyse([...base(),wide]);
