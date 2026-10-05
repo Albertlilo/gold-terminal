@@ -112,9 +112,10 @@ export default function AccountGate({ children }) {
         {user.emailVerified && profile?.role !== 'owner' && !profile?.premium && <button disabled={busy} onClick={()=>billing('checkout')}>{profile?.trialEligible ? 'Start 7-day free trial' : 'Subscribe to Pro · £25/month'}</button>}
         {!user.emailVerified && <button disabled={busy} onClick={()=>act('verify')}>Send verification email</button>}
         <button disabled={busy} onClick={()=>act('logout')}>Sign out</button></> : <>
+        <p className="analysis-method"><strong>Free signup:</strong> Continue with Google creates a free account and shows its Account ID here. It does not start a Pro trial or ask for payment details.</p>
         <div className="phone-alert-fields"><label>Email<input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} /></label>
         <label>Password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} /></label></div>
-        <div className="phone-alert-actions"><button disabled={!ready||busy} onClick={()=>act('login')}>Sign in</button><button disabled={!ready||busy} onClick={()=>act('signup')}>Create account</button><button disabled={!ready||busy} onClick={()=>act('google')}>Continue with Google</button><button disabled={!ready||busy||!email} onClick={()=>act('reset')}>Reset password</button></div>
+        <div className="phone-alert-actions"><button disabled={!ready||busy} onClick={()=>act('login')}>Sign in</button><button disabled={!ready||busy} onClick={()=>act('signup')}>Create account</button><button disabled={!ready||busy} onClick={()=>act('google')}>Continue with Google · Free signup</button><button disabled={!ready||busy||!email} onClick={()=>act('reset')}>Reset password</button></div>
       </>}
       <p role="status">{busy?'Working…':message}</p>
       <p>Eligible new Pro accounts get 7 days free, then £25/month plus applicable tax. A payment method is required at signup; billing starts automatically when the trial ends unless you cancel before then.</p>
