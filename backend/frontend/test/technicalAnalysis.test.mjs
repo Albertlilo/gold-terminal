@@ -71,6 +71,13 @@ test('zones freeze at break rather than incorporating new highs',()=>{
   const a=analyse([...broken,row(21,103,102,200),row(22,101.5,100.9,102)]);
   assert.deepEqual(a.zones,analyse(broken).zones);assert.equal(a.confirmation,'Buy Watch');
 });
+test('support and resistance stay fixed until the next 20-candle zone block',()=>{
+  const rows=[...base(),...Array.from({length:20},(_,i)=>row(i+20,100,99.7,100.3))];
+  const beforeRefresh=analyse(rows);
+  assert.equal(beforeRefresh.support,99);
+  const atRefresh=analyse([...rows,row(40,100,99.7,100.3)]);
+  assert.equal(atRefresh.support,99.7);
+});
 test('wrong-side close invalidates and a late retest cannot revive expired setup',()=>{
   assert.equal(analyse([...base(),row(20,102,100,103),row(21,100,99,102)]).state,'Retest invalidated');
   const rows=[...base(),row(20,102,100,103)];

@@ -2,7 +2,7 @@ export const ZONE_LOOKBACK = 20;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v6-opposite-reaction-supersedes";
+export const RULE_VERSION = "zones-retest-v7-stable-zone-blocks";
 export const NOISE_PERCENT = 0.1;
 
 function beginReaction(type, index, candle, zones) {
@@ -102,7 +102,12 @@ export function confirmZones(completed) {
           : setup.direction === "buy" ? "Breakout · awaiting retest" : "Support break · awaiting retest";
       continue;
     }
-    zones = buildZones(completed.slice(i - ZONE_LOOKBACK, i));
+    // Keep these support/resistance levels fixed for one full lookback block.
+    // Recomputing from a rolling window on every candle can make a prior level
+    // disappear immediately as older candles roll off, before a break setup
+    // can be displayed. The next block refreshes levels from the prior block.
+    const zoneBlockStart = Math.floor(i / ZONE_LOOKBACK) * ZONE_LOOKBACK;
+    zones = buildZones(completed.slice(zoneBlockStart - ZONE_LOOKBACK, zoneBlockStart));
     confirmation = "None";
     const buy = clears(candle.close, zones.buy, true);
     const sell = clears(candle.close, zones.sell, false);
