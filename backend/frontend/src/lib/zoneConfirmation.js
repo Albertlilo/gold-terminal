@@ -4,7 +4,7 @@ export const MIN_ZONE_TOUCHES = 3;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v8-confirmed-swing-structure";
+export const RULE_VERSION = "zones-retest-v9-independent-structure-sides";
 export const NOISE_PERCENT = 0.05;
 const SWING_RADIUS = 2;
 const MAX_PREVIOUS_ZONES = 6;
@@ -58,24 +58,34 @@ export function buildZones(previous) {
     .sort((a, b) => b.center - a.center || b.touches - a.touches)[0];
   const resistanceCandidate = confirmed.filter(cluster => cluster.center > reference + minimumGap)
     .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];
-  if (!supportCandidate || !resistanceCandidate) return null;
-  const gap = resistanceCandidate.center - supportCandidate.center;
-  const width = Math.min(gap / 3, Math.max(averageRange * 0.2, reference * 0.00025));
+  if (!supportCandidate && !resistanceCandidate) return null;
+  const baseWidth = Math.max(averageRange * 0.2, reference * 0.00025);
+  const gap = supportCandidate && resistanceCandidate ? resistanceCandidate.center - supportCandidate.center : null;
+  const width = gap ? Math.min(gap / 3, baseWidth) : baseWidth;
   const breakBuffer = Math.max(averageRange * 0.2, reference * NOISE_PERCENT / 100);
-  const support = { label: "Support zone", low: supportCandidate.center, high: supportCandidate.center + width,
-    color: "#70d69c", active: true, touches: supportCandidate.touches, lastTouch: supportCandidate.lastTouch };
-  const resistance = { label: "Resistance zone", low: resistanceCandidate.center - width, high: resistanceCandidate.center,
-    color: "#ef7b7b", active: true, touches: resistanceCandidate.touches, lastTouch: resistanceCandidate.lastTouch };
-  return { support, resistance, buy: resistance.high + breakBuffer, sell: support.low - breakBuffer,
+  const support = supportCandidate ? { label: "Support zone", low: supportCandidate.center, high: supportCandidate.center + width,
+    color: "#70d69c", active: true, touches: supportCandidate.touches, lastTouch: supportCandidate.lastTouch } : null;
+  const resistance = resistanceCandidate ? { label: "Resistance zone", low: resistanceCandidate.center - width, high: resistanceCandidate.center,
+    color: "#ef7b7b", active: true, touches: resistanceCandidate.touches, lastTouch: resistanceCandidate.lastTouch } : null;
+  return { support, resistance, buy: resistance ? resistance.high + breakBuffer : null,
+    sell: support ? support.low - breakBuffer : null,
     breakBuffer, averageRange };
 }
 
 function sameZone(first, second) {
+  if (!first && !second) return true;
   if (!first || !second) return false;
   const width = Math.max(first.high - first.low, second.high - second.low);
   const firstMiddle = (first.low + first.high) / 2;
   const secondMiddle = (second.low + second.high) / 2;
   return Math.abs(firstMiddle - secondMiddle) <= width;
+}
+
+function structureState(zones) {
+  if (zones?.support && zones?.resistance) return "Between zones";
+  if (zones?.support) return "Support confirmed · finding resistance";
+  if (zones?.resistance) return "Resistance confirmed · finding support";
+  return "Collecting confirmed structure";
 }
 
 function archiveChangedZones(history, current, next, time) {
@@ -129,9 +139,9 @@ export function confirmZones(completed) {
         const reactionZones = currentZones || setup.zones;
         if (reactionZones) {
           const prior = completed[i - 1];
-          const approachingSupport = prior.close > reactionZones.support.high
+          const approachingSupport = reactionZones.support && prior.close > reactionZones.support.high
             && candle.low <= reactionZones.support.high && candle.close >= reactionZones.support.low;
-          const approachingResistance = prior.close < reactionZones.resistance.low
+          const approachingResistance = reactionZones.resistance && prior.close < reactionZones.resistance.low
             && candle.high >= reactionZones.resistance.low && candle.close <= reactionZones.resistance.high;
           const nextType = setup.type === "resistance-rejection" && approachingSupport ? "support-bounce"
             : setup.type === "support-bounce" && approachingResistance ? "resistance-rejection" : null;
@@ -165,17 +175,17 @@ export function confirmZones(completed) {
       continue;
     }
     confirmation = "None";
-    const buy = clears(candle.close, zones.buy, true);
-    const sell = clears(candle.close, zones.sell, false);
+    const buy = zones.resistance && clears(candle.close, zones.buy, true);
+    const sell = zones.support && clears(candle.close, zones.sell, false);
     if (buy || sell) {
       setup = { direction: buy ? "buy" : "sell", index: i, time: candle.time, zones, touchedIndex: null, touchedAt: null, confirmedAt: null, confirmedIndex: null };
       state = buy ? "Breakout · awaiting retest" : "Support break · awaiting retest";
     } else {
-      const support = zones.support;
       const prior = completed[i - 1];
-      const approachingSupport = prior.close > support.high && candle.low <= support.high && candle.close >= support.low;
+      const support = zones.support;
+      const approachingSupport = support && prior.close > support.high && candle.low <= support.high && candle.close >= support.low;
       const resistance = zones.resistance;
-      const approachingResistance = prior.close < resistance.low && candle.high >= resistance.low && candle.close <= resistance.high;
+      const approachingResistance = resistance && prior.close < resistance.low && candle.high >= resistance.low && candle.close <= resistance.high;
       if (approachingSupport && approachingResistance) {
         state = "Conflicting zone touches · wait";
       } else if (approachingSupport) {
@@ -189,7 +199,7 @@ export function confirmZones(completed) {
         confirmation = next.confirmation;
         state = next.state;
       } else {
-        state = "Between zones";
+        state = structureState(zones);
         // Evaluate this candle against the existing structure before allowing
         // three confirmed swing reactions to introduce a new pair of zones.
         // A recalculation can therefore never hide a break on the same candle.
@@ -197,6 +207,7 @@ export function confirmZones(completed) {
         if (nextZones && (!sameZone(zones.support, nextZones.support) || !sameZone(zones.resistance, nextZones.resistance))) {
           previousZones = archiveChangedZones(previousZones, zones, nextZones, candle.time);
           zones = nextZones;
+          state = structureState(zones);
         }
       }
     }

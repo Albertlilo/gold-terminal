@@ -21,11 +21,13 @@ export function analyseCandles(rows, interval, now) {
   const { support, resistance, buy, sell } = result.zones;
   return { ...base, ready: true, state: result.state, confirmation: result.confirmation, setup: result.setup, move, close: last.close,
     stale: now / 1000 - (last.time + duration) > Math.max(duration * 2, 900),
-    support: support.low, resistance: resistance.high, zones: [...result.previousZones, support, resistance],
-    structure: { supportTouches: support.touches, resistanceTouches: resistance.touches,
+    support: support?.low ?? null, resistance: resistance?.high ?? null,
+    zones: [...result.previousZones, support, resistance].filter(Boolean),
+    structure: { supportTouches: support?.touches ?? null, resistanceTouches: resistance?.touches ?? null,
       breakBuffer: result.zones.breakBuffer, historyCount: result.previousZones.length },
     average: window.reduce((sum, row) => sum + row.close, 0) / window.length,
-    levels: [{ label: "Buy Watch trigger", price: buy, color: "#70d69c" }, { label: "Sell Watch trigger", price: sell, color: "#ef7b7b" }],
+    levels: [resistance && { label: "Buy Watch trigger", price: buy, color: "#70d69c" },
+      support && { label: "Sell Watch trigger", price: sell, color: "#ef7b7b" }].filter(Boolean),
   };
 }
 
@@ -36,7 +38,7 @@ export function makeTechnicalPlan(analysis, { isOpen }) {
   const supportBounce = analysis.setup?.type === "support-bounce" || analysis.confirmation === "Support Bounce";
   const resistanceRejection = analysis.setup?.type === "resistance-rejection" || analysis.confirmation === "Resistance Rejection";
   const reason = !isOpen ? "Market closed. Wait for the next session."
-    : !analysis.ready ? "At least 21 completed candles are needed: 20 to establish zones, then a potential break."
+    : !analysis.ready ? "The chart is collecting enough completed candles and three separated reactions to confirm a support or resistance zone."
     : analysis.stale ? "Candle data is delayed. Wait for a fresh completed candle."
     : supportBounce && signal === "Support Bounce" ? "A completed candle touched support and closed bullishly back above the support zone. This is a technical support-bounce confirmation, separate from macro bias and breakout/retest watches."
     : supportBounce && analysis.state === "Support bounce developing" ? "Price has touched the support zone. Wait for a completed bullish close back above its upper edge; a touch alone is not confirmation."
@@ -51,6 +53,8 @@ export function makeTechnicalPlan(analysis, { isOpen }) {
     : analysis.state === "Pullback developing" ? "The retest has touched the zone. Wait for a completed recovery close beyond the trigger; a zone touch alone does not confirm a watch."
     : analysis.state === "Confirmation weakened" ? "The latest completed close no longer holds beyond the trigger. The watch is paused; the far zone edge still defines invalidation."
     : analysis.state?.includes("awaiting retest") ? "A break is recorded, but the zone has not yet been touched by a later completed candle. Do not confuse the breakout with retest confirmation."
+    : analysis.state === "Support confirmed · finding resistance" ? "Confirmed support is visible and can form a support-bounce or support-break setup. Resistance is still collecting three separated reactions."
+    : analysis.state === "Resistance confirmed · finding support" ? "Confirmed resistance is visible and can form a rejection or resistance-break setup. Support is still collecting three separated reactions."
     : "No completed technical setup is confirmed on this timeframe. Crossing a price line alone does not confirm a breakout/retest watch; a support bounce also needs a completed bullish reclaim. Macro score does not trigger or filter technical setups.";
   return { signal, reason,
     preferred: signal === "Support Bounce" ? "Support-bounce buy confirmed" : signal === "Resistance Rejection" ? "Resistance-rejection sell confirmed" : signal === "Sell Watch" ? "Support-break sell confirmed" : signal === "Buy Watch" ? "Resistance-break buy confirmed" : supportBounce ? "Support-bounce buy developing" : resistanceRejection ? "Resistance-rejection sell developing" : direction === "sell" ? "Support-break sell developing" : direction === "buy" ? "Resistance-break buy developing" : "No active technical setup",

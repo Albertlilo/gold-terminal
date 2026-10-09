@@ -28,7 +28,11 @@ export function backtestCandles(rows, interval, { now, cost, rewardMultiple = 2,
       if (stamp === candles[i - 1].time && candle.time === stamp + seconds && !used.has(stamp) && prior.confirmation !== "None") {
         used.add(stamp);
         const sign = ["Buy Watch", "Support Bounce"].includes(prior.confirmation) ? 1 : -1;
-        const stop = prior.confirmation === "Support Bounce" ? prior.zones[0].low : prior.confirmation === "Resistance Rejection" ? prior.zones[1].high : sign === 1 ? prior.zones[1].low : prior.zones[0].high;
+        const support = prior.zones.find(zone => zone.label === "Support zone");
+        const resistance = prior.zones.find(zone => zone.label === "Resistance zone");
+        const stop = prior.confirmation === "Support Bounce" ? support?.low
+          : prior.confirmation === "Resistance Rejection" ? resistance?.high
+            : sign === 1 ? resistance?.low : support?.high;
         const risk = (candle.open - stop) * sign;
         if (risk > 0) {
           position = { entryTime: candle.time, signalTime: stamp, direction: sign === 1 ? "buy" : "sell", entry: candle.open, stop,

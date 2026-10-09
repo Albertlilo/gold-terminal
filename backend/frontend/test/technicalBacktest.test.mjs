@@ -52,6 +52,22 @@ test('resistance-rejection replay uses the resistance zone edge for invalidation
   assert.equal(result.openTrade.stop,101);
   assert.equal(result.openTrade.signalTime,22*300);
 });
+test('replay handles a support setup before resistance has qualified', () => {
+  const supportOnly=Array.from({length:20},(_,i)=>row(i,100,90,101+i*0.1));
+  const touch=row(20,91.5,91,93,92);
+  const reclaim=row(21,93,91,94,91.5);
+  const result=backtestCandles([...supportOnly,touch,reclaim,row(22,94,93,95,94)],'5min',options,session);
+  assert.equal(result.openTrade.direction,'buy');
+  assert.equal(result.openTrade.stop,90);
+});
+test('replay handles a resistance setup before support has qualified', () => {
+  const resistanceOnly=Array.from({length:20},(_,i)=>row(i,100,99-i*0.1,110));
+  const touch=row(20,108.5,106,109,108);
+  const reject=row(21,107,106,109,109);
+  const result=backtestCandles([...resistanceOnly,touch,reject,row(22,106,105,107,106)],'5min',options,session);
+  assert.equal(result.openTrade.direction,'sell');
+  assert.equal(result.openTrade.stop,110);
+});
 test('risk reward rejects invalid directions and price ordering', () => {
   assert.equal(riskReward(100,99,102,'buy').ratio,2);
   assert.equal(riskReward(100,101,98,'sell').ratio,2);

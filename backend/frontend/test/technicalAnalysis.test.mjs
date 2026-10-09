@@ -86,6 +86,28 @@ test('one extreme wick cannot create a new structural zone',()=>{
   assert.equal(analysis.resistance,101);
   assert.equal(analysis.confirmation,'None');
 });
+test('confirmed support is shown while resistance is still forming',()=>{
+  const supportOnly=Array.from({length:20},(_,i)=>row(i,100,90,101+i*0.1));
+  const analysis=analyse([...supportOnly,row(20,100,95,103)]);
+  assert.equal(analysis.ready,true);
+  assert.equal(analysis.state,'Support confirmed · finding resistance');
+  assert.equal(analysis.zones.filter(zone=>zone.label==='Support zone').length,1);
+  assert.equal(analysis.zones.some(zone=>zone.label==='Resistance zone'),false);
+  assert.equal(analysis.levels.some(level=>level.label==='Sell Watch trigger'),true);
+  assert.equal(analysis.levels.some(level=>level.label==='Buy Watch trigger'),false);
+  assert.match(makeTechnicalPlan(analysis,{isOpen:true}).reason,/Confirmed support is visible/);
+});
+test('confirmed resistance is shown while support is still forming',()=>{
+  const resistanceOnly=Array.from({length:20},(_,i)=>row(i,100,99-i*0.1,110));
+  const analysis=analyse([...resistanceOnly,row(20,100,97,105)]);
+  assert.equal(analysis.ready,true);
+  assert.equal(analysis.state,'Resistance confirmed · finding support');
+  assert.equal(analysis.zones.filter(zone=>zone.label==='Resistance zone').length,1);
+  assert.equal(analysis.zones.some(zone=>zone.label==='Support zone'),false);
+  assert.equal(analysis.levels.some(level=>level.label==='Buy Watch trigger'),true);
+  assert.equal(analysis.levels.some(level=>level.label==='Sell Watch trigger'),false);
+  assert.match(makeTechnicalPlan(analysis,{isOpen:true}).reason,/Confirmed resistance is visible/);
+});
 test('wrong-side close invalidates and a late retest cannot revive expired setup',()=>{
   assert.equal(analyse([...base(),row(20,102,100,103),row(21,100,99,102)]).state,'Retest invalidated');
   const rows=[...base(),row(20,102,100,103)];
