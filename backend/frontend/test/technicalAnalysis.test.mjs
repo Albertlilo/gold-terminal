@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyseCandles, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
 import { getGoldSession } from '../src/lib/goldSession.js';
+import { buildZones } from '../src/lib/zoneConfirmation.js';
 const row = (i, close=100, low=99, high=101, seconds=300) => ({time:(i+1)*seconds,open:close,close,low,high});
 const base = (seconds=300) => Array.from({length:20},(_,i)=>row(i,100,99,101,seconds));
 const analyse = (rows, interval='5min', seconds=300) => analyseCandles(rows,interval,(rows.at(-1).time+seconds)*1000);
@@ -107,6 +108,11 @@ test('confirmed resistance is shown while support is still forming',()=>{
   assert.equal(analysis.levels.some(level=>level.label==='Buy Watch trigger'),true);
   assert.equal(analysis.levels.some(level=>level.label==='Sell Watch trigger'),false);
   assert.match(makeTechnicalPlan(analysis,{isOpen:true}).reason,/Confirmed resistance is visible/);
+});
+test('old swing levels far outside the current structure are not promoted as active zones',()=>{
+  const oldSupport=Array.from({length:20},(_,i)=>row(i,100,90,101+i*0.1));
+  const currentTrend=Array.from({length:20},(_,i)=>row(i+20,120+i*0.1,115+i*0.1,121+i*0.1));
+  assert.equal(buildZones([...oldSupport,...currentTrend]),null);
 });
 test('wrong-side close invalidates and a late retest cannot revive expired setup',()=>{
   assert.equal(analyse([...base(),row(20,102,100,103),row(21,100,99,102)]).state,'Retest invalidated');

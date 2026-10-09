@@ -4,7 +4,7 @@ export const MIN_ZONE_TOUCHES = 3;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v9-independent-structure-sides";
+export const RULE_VERSION = "zones-retest-v10-current-structure-proximity";
 export const NOISE_PERCENT = 0.05;
 const SWING_RADIUS = 2;
 const MAX_PREVIOUS_ZONES = 6;
@@ -29,19 +29,20 @@ function beginReaction(type, index, candle, zones) {
 export function buildZones(previous) {
   const rows = previous.slice(-STRUCTURE_LOOKBACK);
   if (rows.length < ZONE_LOOKBACK) return null;
-  const averageRange = rows.reduce((sum, row) => sum + row.high - row.low, 0) / rows.length;
+  const recent = rows.slice(-ZONE_LOOKBACK);
+  const averageRange = recent.reduce((sum, row) => sum + row.high - row.low, 0) / recent.length;
   const reference = rows.at(-1).close;
   const mergeDistance = Math.max(averageRange * 0.35, reference * 0.0004);
   const points = [];
   for (let i = SWING_RADIUS; i < rows.length - SWING_RADIUS; i++) {
     const neighbours = rows.slice(i - SWING_RADIUS, i + SWING_RADIUS + 1);
-    if (neighbours.every(row => rows[i].low <= row.low)) points.push({ price: rows[i].low, index: i, time: rows[i].time });
-    if (neighbours.every(row => rows[i].high >= row.high)) points.push({ price: rows[i].high, index: i, time: rows[i].time });
+    if (neighbours.every(row => rows[i].low <= row.low)) points.push({ price: rows[i].low, index: i, time: rows[i].time, role: "support" });
+    if (neighbours.every(row => rows[i].high >= row.high)) points.push({ price: rows[i].high, index: i, time: rows[i].time, role: "resistance" });
   }
   const clusters = [];
   for (const point of points.sort((a, b) => a.price - b.price)) {
-    let cluster = clusters.find(item => Math.abs(item.center - point.price) <= mergeDistance);
-    if (!cluster) { cluster = { values: [], points: [], center: point.price }; clusters.push(cluster); }
+    let cluster = clusters.find(item => item.role === point.role && Math.abs(item.center - point.price) <= mergeDistance);
+    if (!cluster) { cluster = { values: [], points: [], center: point.price, role: point.role }; clusters.push(cluster); }
     cluster.values.push(point.price);
     cluster.points.push(point);
     cluster.center = cluster.values.reduce((sum, value) => sum + value, 0) / cluster.values.length;
@@ -54,9 +55,14 @@ export function buildZones(previous) {
     return { ...cluster, touches: separated.length, lastTouch: separated.at(-1)?.time ?? null };
   }).filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES);
   const minimumGap = Math.max(averageRange * 0.2, reference * NOISE_PERCENT / 100);
-  const supportCandidate = confirmed.filter(cluster => cluster.center < reference - minimumGap)
+  const recentLow = Math.min(...recent.map(row => row.low));
+  const recentHigh = Math.max(...recent.map(row => row.high));
+  const activeMargin = Math.max(averageRange * 2, reference * NOISE_PERCENT / 100);
+  const supportCandidate = confirmed.filter(cluster => cluster.role === "support"
+      && cluster.center < reference - minimumGap && cluster.center >= recentLow - activeMargin)
     .sort((a, b) => b.center - a.center || b.touches - a.touches)[0];
-  const resistanceCandidate = confirmed.filter(cluster => cluster.center > reference + minimumGap)
+  const resistanceCandidate = confirmed.filter(cluster => cluster.role === "resistance"
+      && cluster.center > reference + minimumGap && cluster.center <= recentHigh + activeMargin)
     .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];
   if (!supportCandidate && !resistanceCandidate) return null;
   const baseWidth = Math.max(averageRange * 0.2, reference * 0.00025);
