@@ -10,9 +10,10 @@ test('replay enters after confirmation, deducts costs and resolves ambiguous bar
   const result = backtestCandles([...base(),row(22,102,99,110,102)],'5min',options,session);
   assert.equal(result.trades.length,1);
   const trade = result.trades[0];
+  const expectedStop=analyseCandles(base(),'5min',23*300*1000).zones.find(zone=>zone.label==='Resistance zone').low;
   assert.equal(trade.entryTime,23*300); assert.equal(trade.signalTime,22*300);
-  assert.equal(trade.entry,102); assert.equal(trade.exit,100.5);
-  assert.ok(Math.abs(trade.net + 1.7) < 1e-10);
+  assert.equal(trade.entry,102); assert.equal(trade.exit,expectedStop);
+  assert.ok(Math.abs(trade.net-(expectedStop-102-options.cost))<1e-10);
 });
 test('future bars cannot change earlier signals or completed trades', () => {
   const rows=[...base(),row(22,102,99,110,102)];

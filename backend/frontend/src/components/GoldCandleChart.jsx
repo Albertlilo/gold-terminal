@@ -262,8 +262,8 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
             const price = min + (max - min) * index / 5;
             return <g key={index}><line x1="8" x2={plotWidth + 8} y1={y(price)} y2={y(price)} stroke="#292929" /><text x={width - 8} y={y(price) + 4} textAnchor="end" fill="#bcbcbc" fontSize="12">{price.toFixed(2)}</text></g>;
           })}
-          {bands.filter(zone => zone.high >= min && zone.low <= max).map(zone => <g key={zone.label}>
-            <rect x="8" y={y(Math.min(max, zone.high))} width={plotWidth} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={zone.color} fillOpacity="0.12" stroke={zone.color} strokeOpacity="0.4" />
+          {bands.filter(zone => zone.high >= min && zone.low <= max).map(zone => <g key={zone.id || zone.label}>
+            <rect x="8" y={y(Math.min(max, zone.high))} width={plotWidth} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={zone.color} fillOpacity={zone.active === false ? "0.035" : "0.12"} stroke={zone.color} strokeOpacity={zone.active === false ? "0.3" : "0.55"} strokeDasharray={zone.active === false ? "4 5" : undefined} />
             <text x="12" y={Math.min(bottom - 5, y(Math.min(max, zone.high)) + 13)} fill={zone.color} stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize={width < 420 ? "10" : "12"}>{zone.label}</text>
           </g>)}
           {visible.map((candle, index) => {
@@ -293,7 +293,7 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
       <p className="candle-hint">{visible.length} shown / {candles.length} loaded · UTC · Drag right for older history; more loads at the edge. Pinch or scroll to zoom. Tap a candle for its numbers. Scroll the page outside the chart.</p>
       {visible.length > 0 && quiet && <p className="candle-hint">The visible prices cover a narrow range. Auto-fit enlarges that range; it does not change saved prices.</p>}
       <p className="candle-hint">Gold price badge = last visible candle close. Analysis uses completed candles; the newest candle may still be forming. Older history depends on saved data and your provider’s coverage.</p>
-      {bands.length > 0 && <div className="candle-levels">{bands.map(zone => <span key={zone.label} style={{ color: zone.color }}>{zone.label}: {zone.low.toFixed(2)}–{zone.high.toFixed(2)}{zone.high < min || zone.low > max ? " (outside view)" : ""}</span>)}</div>}
+      {bands.length > 0 && <div className="candle-levels">{bands.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label}: {zone.low.toFixed(2)}–{zone.high.toFixed(2)}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}{zone.high < min || zone.low > max ? " (outside view)" : ""}</span>)}</div>}
       {levels.length > 0 && <div className="candle-levels">{levels.map(level => <span key={level.label} style={{ color: level.color }}>{level.label}: {level.price.toFixed(2)}{level.price < min || level.price > max ? " (outside view)" : ""}</span>)}</div>}
     </>
   );

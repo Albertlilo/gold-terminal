@@ -17,10 +17,13 @@ export function analyseCandles(rows, interval, now) {
   const anchor = window[0].close;
   const move = (last.close - anchor) / anchor * 100;
   const result = confirmZones(completed);
+  if (!result.zones) return { ...base, state: result.state, move, close: last.close };
   const { support, resistance, buy, sell } = result.zones;
   return { ...base, ready: true, state: result.state, confirmation: result.confirmation, setup: result.setup, move, close: last.close,
     stale: now / 1000 - (last.time + duration) > Math.max(duration * 2, 900),
-    support: support.low, resistance: resistance.high, zones: [support, resistance],
+    support: support.low, resistance: resistance.high, zones: [...result.previousZones, support, resistance],
+    structure: { supportTouches: support.touches, resistanceTouches: resistance.touches,
+      breakBuffer: result.zones.breakBuffer, historyCount: result.previousZones.length },
     average: window.reduce((sum, row) => sum + row.close, 0) / window.length,
     levels: [{ label: "Buy Watch trigger", price: buy, color: "#70d69c" }, { label: "Sell Watch trigger", price: sell, color: "#ef7b7b" }],
   };

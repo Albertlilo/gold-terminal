@@ -71,12 +71,20 @@ test('zones freeze at break rather than incorporating new highs',()=>{
   const a=analyse([...broken,row(21,103,102,200),row(22,101.5,100.9,102)]);
   assert.deepEqual(a.zones,analyse(broken).zones);assert.equal(a.confirmation,'Buy Watch');
 });
-test('support and resistance stay fixed until the next 20-candle zone block',()=>{
+test('confirmed replacement structure keeps the previous zones visible',()=>{
   const rows=[...base(),...Array.from({length:20},(_,i)=>row(i+20,100,99.7,100.3))];
-  const beforeRefresh=analyse(rows);
-  assert.equal(beforeRefresh.support,99);
-  const atRefresh=analyse([...rows,row(40,100,99.7,100.3)]);
-  assert.equal(atRefresh.support,99.7);
+  const analysis=analyse(rows);
+  assert.ok(Math.abs(analysis.support-99.7)<1e-10);
+  assert.ok(analysis.zones.some(zone=>zone.label==='Previous support' && zone.low===99));
+  assert.ok(analysis.zones.some(zone=>zone.label==='Previous resistance' && zone.high===101));
+  assert.ok(analysis.structure.supportTouches>=3);
+  assert.ok(analysis.structure.resistanceTouches>=3);
+});
+test('one extreme wick cannot create a new structural zone',()=>{
+  const analysis=analyse([...base(),row(20,100,95,105)]);
+  assert.equal(analysis.support,99);
+  assert.equal(analysis.resistance,101);
+  assert.equal(analysis.confirmation,'None');
 });
 test('wrong-side close invalidates and a late retest cannot revive expired setup',()=>{
   assert.equal(analyse([...base(),row(20,102,100,103),row(21,100,99,102)]).state,'Retest invalidated');
