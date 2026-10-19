@@ -22,7 +22,11 @@ export function analyseCandles(rows, interval, now) {
   return { ...base, ready: true, state: result.state, confirmation: result.confirmation, setup: result.setup, move, close: last.close,
     stale: now / 1000 - (last.time + duration) > Math.max(duration * 2, 900),
     support: support?.low ?? null, resistance: resistance?.high ?? null,
-    zones: [...result.previousZones, support, resistance].filter(Boolean),
+    // Retired levels remain available to the audit/backtest result, but the
+    // live chart only receives the current validated structure. Showing old
+    // levels beside active ones makes the technical read look contradictory.
+    zones: [support, resistance].filter(Boolean),
+    previousZones: result.previousZones,
     structure: { supportTouches: support?.touches ?? null, resistanceTouches: resistance?.touches ?? null,
       breakBuffer: result.zones.breakBuffer, historyCount: result.previousZones.length },
     average: window.reduce((sum, row) => sum + row.close, 0) / window.length,

@@ -4,9 +4,12 @@ export const MIN_ZONE_TOUCHES = 3;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v10-current-structure-proximity";
+export const RULE_VERSION = "zones-retest-v11-clean-active-structure";
 export const NOISE_PERCENT = 0.05;
 const SWING_RADIUS = 2;
+// Reactions must be separated by several completed candles. This prevents a
+// single choppy move from being counted as a stack of independent touches.
+const MIN_TOUCH_SEPARATION = 4;
 const MAX_PREVIOUS_ZONES = 6;
 
 function beginReaction(type, index, candle, zones) {
@@ -50,7 +53,7 @@ export function buildZones(previous) {
   const confirmed = clusters.map(cluster => {
     const separated = [];
     for (const point of cluster.points.sort((a, b) => a.index - b.index)) {
-      if (!separated.length || point.index - separated.at(-1).index >= SWING_RADIUS) separated.push(point);
+      if (!separated.length || point.index - separated.at(-1).index >= MIN_TOUCH_SEPARATION) separated.push(point);
     }
     return { ...cluster, touches: separated.length, lastTouch: separated.at(-1)?.time ?? null };
   }).filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES);
