@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { markDashboardStale } = require('../src/services/dashboardFallback');
+const { markDashboardStale, buildPartialDashboard } = require('../src/services/dashboardFallback');
 
 test('Atlas snapshot fallback visibly marks macro data and quote stale without mutating saved data', () => {
   const savedAt = new Date('2026-10-21T12:00:00.000Z');
@@ -26,4 +26,14 @@ test('in-process FRED fallback warns only about cached economic readings', () =>
   assert.equal(result.meta.status, 'stale');
   assert.match(result.meta.warning, /FRED could not refresh/);
   assert.equal(result.market.xauusd.stale, false);
+});
+
+test('partial dashboard keeps the independent market quote while clearly withholding macro score', () => {
+  const market = { xauusd: { price: 4189.01, stale: false } };
+  const result = buildPartialDashboard(market, '2026-10-21T17:40:00.000Z');
+  assert.equal(result.meta.status, 'partial');
+  assert.equal(result.market, market);
+  assert.equal(result.gold.score, null);
+  assert.equal(result.gold.summary, 'Macro data unavailable');
+  assert.match(result.meta.warning, /shown separately/);
 });

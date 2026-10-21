@@ -59,10 +59,11 @@ function App() {
 
         const data = await response.json();
         if (disposed) return;
-        if (!data?.gold?.score || !data?.market) throw new Error("Incomplete dashboard response");
+        if (!data?.market) throw new Error("Incomplete dashboard response");
         const staleData = data?.meta?.status === "stale";
-        setDashboardError(staleData
-          ? (data.meta.warning || "Economic readings are cached because their provider could not refresh.")
+        const partialData = data?.meta?.status === "partial";
+        setDashboardError(staleData || partialData
+          ? (data.meta.warning || "Economic readings are unavailable because their provider could not refresh.")
           : "");
         const closed = !getGoldSession().isOpen || data?.market?.xauusd?.marketClosed;
         if (closed && previousGoldPrice.current !== null) data.market.xauusd.price = previousGoldPrice.current;

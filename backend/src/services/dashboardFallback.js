@@ -23,4 +23,24 @@ function markDashboardStale(data, savedAt, reason = "provider") {
   return stale;
 }
 
-module.exports = { markDashboardStale };
+function buildPartialDashboard(market, generatedAt = new Date().toISOString()) {
+  if (!market) return null;
+  return {
+    meta: {
+      generatedAt,
+      source: "FRED",
+      status: "partial",
+      lastProviderSuccessAt: null,
+      warning: "Macro data is unavailable because FRED could not complete the request. Gold price data is shown separately when available.",
+    },
+    gold: {
+      summary: "Macro data unavailable",
+      score: null,
+      topBullishDrivers: [],
+      topBearishDrivers: [],
+    },
+    market,
+  };
+}
+
+module.exports = { markDashboardStale, buildPartialDashboard };

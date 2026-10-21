@@ -8,6 +8,8 @@ const {
 const {buildSeriesResponse} = require("../services/fredService");
 const dashboardStore = require("../services/candleStore");
 const { markDashboardStale } = require("../services/dashboardFallback");
+const { getMarketSnapshot } = require("../services/marketService");
+const { buildPartialDashboard } = require("../services/dashboardFallback");
 
 const getTwoYearYield = async (req, res) => {
   try {
@@ -609,6 +611,15 @@ const getDashboard = async (req, res) => {
       if (stale) return res.status(200).json(stale);
     } catch {
       // Keep the provider failure response when Atlas cannot supply a snapshot.
+    }
+    try {
+      // Macro provider failure should not prevent the independent gold quote
+      // provider (or saved candle fallback) from serving the live market card.
+      const market = await getMarketSnapshot();
+      const partial = buildPartialDashboard(market);
+      if (partial) return res.status(200).json(partial);
+    } catch {
+      // Preserve an explicit unavailable response when both providers fail.
     }
     res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
