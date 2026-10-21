@@ -24,6 +24,9 @@ function readFredPayload(response) {
     error.payloadKind = /^<!doctype html|^<html\b/.test(start) ? "html"
       : /^<\?xml\b|^<error\b/.test(start) ? "xml"
       : /^[\[{]/.test(start) ? "malformed_json" : "plain_text";
+    if (error.payloadKind === "html" && /currently undergoing proactive maintenance|we.ll be back soon/i.test(payload)) {
+      error.code = "FRED_MAINTENANCE";
+    }
   }
   const contentType = response.headers?.["content-type"];
   error.contentType = typeof contentType === "string"

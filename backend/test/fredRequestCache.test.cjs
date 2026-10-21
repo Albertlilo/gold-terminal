@@ -96,3 +96,17 @@ test('unexpected FRED payloads are distinguished from connection errors', async 
   assert.equal(logs[0][1].category, 'invalid_response');
   assert.equal(logs[0][1].failureKind, 'invalid_payload');
 });
+
+test('maintenance pauses upstream requests for five minutes', async () => {
+  let time = 0, calls = 0;
+  const logs = [];
+  const cache = createFredRequestCache({ now: () => time, sleep: async () => {}, log: (...args) => logs.push(args), request: async () => {
+    calls++;
+    throw Object.assign(new Error('FRED maintenance'), { code: 'FRED_MAINTENANCE', upstreamStatus: 200, payloadKind: 'html', contentType: 'text/html' });
+  } });
+  await assert.rejects(cache.load('DFF'), /undergoing maintenance/);
+  await assert.rejects(cache.load('DGS2'), /undergoing maintenance/);
+  assert.equal(calls, 1);
+  assert.equal(logs[0][1].category, 'provider_maintenance');
+  assert.equal(logs[0][1].retrySeconds, 300);
+});

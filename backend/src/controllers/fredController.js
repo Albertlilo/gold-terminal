@@ -616,7 +616,7 @@ const getDashboard = async (req, res) => {
       // Macro provider failure should not prevent the independent gold quote
       // provider (or saved candle fallback) from serving the live market card.
       const market = await getMarketSnapshot();
-      const partial = buildPartialDashboard(market);
+      const partial = buildPartialDashboard(market, new Date().toISOString(), error.code);
       if (partial) return res.status(200).json(partial);
     } catch {
       // Preserve an explicit unavailable response when both providers fail.

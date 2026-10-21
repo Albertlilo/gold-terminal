@@ -65,16 +65,19 @@ function createFredRequestCache({ request, now = Date.now, sleep = ms => new Pro
         const retryDate = Date.parse(retryHeader);
         const retryMs = Number.isFinite(retrySeconds) && retrySeconds > 0
           ? retrySeconds * 1000 : Number.isFinite(retryDate) ? Math.max(0, retryDate - now()) : 0;
-        const cooldown = Math.max(retryMs, status === 403 ? 900000 : 60000);
+        const cooldown = Math.max(retryMs, status === 403 ? 900000 : error.code === 'FRED_MAINTENANCE' ? 300000 : 60000);
         const providerText = typeof error.response?.data === 'string'
           ? error.response.data : String(error.response?.data?.error_message || '');
         const category = error.code === 'FRED_API_KEY_MISSING' ? 'configuration_missing'
+          : error.code === 'FRED_MAINTENANCE' ? 'provider_maintenance'
           : error.code === 'FRED_INVALID_RESPONSE' ? 'invalid_response'
           : /api.?key.*(invalid|registered|set)|invalid.*api.?key/i.test(providerText)
           ? 'api_key_rejected' : /access denied|blocked|forbidden/i.test(providerText)
           ? 'access_blocked' : status === 429 ? 'rate_limit' : 'upstream_failure';
         const message = error.code === 'FRED_API_KEY_MISSING'
           ? 'FRED API key is not configured on the server. Check the FRED_API_KEY environment variable.'
+          : error.code === 'FRED_MAINTENANCE'
+          ? 'FRED is undergoing maintenance. Economic readings cannot refresh until the provider returns; the dashboard will retry automatically.'
           : error.code === 'FRED_INVALID_RESPONSE'
           ? 'FRED returned an unexpected data response. Economic data is temporarily unavailable.'
           : status === 403
@@ -83,6 +86,7 @@ function createFredRequestCache({ request, now = Date.now, sleep = ms => new Pro
           : status === 400 || status === 401 ? 'FRED rejected the request. Check the server API key and request configuration.'
           : 'Economic data is temporarily unavailable. Please retry shortly.';
         lastFailure = failure(message, status, cooldown);
+        lastFailure.code = error.code === 'FRED_MAINTENANCE' ? 'FRED_MAINTENANCE' : undefined;
         blockedUntil = Math.max(blockedUntil, now() + cooldown);
         // Log only a small allow-listed diagnostic; never log Axios objects,
         // request URLs, raw messages, response bodies, or API keys.
@@ -96,7 +100,7 @@ function createFredRequestCache({ request, now = Date.now, sleep = ms => new Pro
         const safeName = typeof nameCandidate === 'string' && /^[A-Za-z0-9_]{1,40}$/.test(nameCandidate)
           ? nameCandidate : 'UnknownError';
         const diagnosticText = String(error.message ?? '').toLowerCase();
-        const failureKind = error.code === 'FRED_INVALID_RESPONSE' ? 'invalid_payload'
+        const failureKind = ['FRED_INVALID_RESPONSE', 'FRED_MAINTENANCE'].includes(error.code) ? 'invalid_payload'
           : /timed? ?out|timeout|time out/.test(diagnosticText) || ['ETIMEDOUT', 'ECONNABORTED'].includes(safeCode) ? 'timeout'
           : ['ENOTFOUND', 'EAI_AGAIN'].includes(safeCode) ? 'dns'
           : ['ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'].includes(safeCode) ? 'connection'

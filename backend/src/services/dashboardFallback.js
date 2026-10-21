@@ -23,7 +23,7 @@ function markDashboardStale(data, savedAt, reason = "provider") {
   return stale;
 }
 
-function buildPartialDashboard(market, generatedAt = new Date().toISOString()) {
+function buildPartialDashboard(market, generatedAt = new Date().toISOString(), reason) {
   if (!market) return null;
   return {
     meta: {
@@ -31,7 +31,9 @@ function buildPartialDashboard(market, generatedAt = new Date().toISOString()) {
       source: "FRED",
       status: "partial",
       lastProviderSuccessAt: null,
-      warning: "Macro data is unavailable because FRED could not complete the request. Gold price data is shown separately when available.",
+      warning: reason === "FRED_MAINTENANCE"
+        ? "FRED is undergoing maintenance, so macro readings cannot update. Gold price data remains available; macro updates will retry automatically."
+        : "Macro data is unavailable because FRED could not complete the request. Gold price data is shown separately when available.",
     },
     gold: {
       summary: "Macro data unavailable",

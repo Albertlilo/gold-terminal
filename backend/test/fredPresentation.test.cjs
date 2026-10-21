@@ -16,6 +16,14 @@ test('FRED HTML response is classified without logging its contents', () => {
   );
 });
 
+test('FRED maintenance page is identified without exposing its contents', () => {
+  const { readFredPayload } = require('../src/services/fredService');
+  assert.throws(
+    () => readFredPayload({ status: 200, headers: { 'content-type': 'text/html' }, data: '<html>We will be back soon. This web site is currently undergoing proactive maintenance.</html>' }),
+    error => error.code === 'FRED_MAINTENANCE' && error.payloadKind === 'html',
+  );
+});
+
 test('backend retains raw scoring inputs and caches source-check time without another HTTP request', async () => {
   const axios = require('axios');
   const original = axios.get;
