@@ -16,6 +16,16 @@ const fredRequests = createFredRequestCache({
       params: { series_id: seriesId, api_key: process.env.FRED_API_KEY.trim(), file_type: "json", sort_order: "desc", limit }
     });
     const observations = response.data.observations;
+    if (!Array.isArray(observations) || !observations.length) {
+      const error = new Error("FRED returned an invalid observations payload");
+      error.code = "FRED_INVALID_RESPONSE";
+      error.upstreamStatus = response.status;
+      error.payloadType = Array.isArray(response.data) ? "array" : typeof response.data;
+      error.payloadKeys = response.data && typeof response.data === "object" && !Array.isArray(response.data)
+        ? Object.keys(response.data).filter(key => /^[A-Za-z0-9_-]{1,40}$/.test(key)).slice(0, 12)
+        : [];
+      throw error;
+    }
     if (Array.isArray(observations)) retrievalTimes.set(observations, new Date().toISOString());
     return observations;
   }

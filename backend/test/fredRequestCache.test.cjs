@@ -76,3 +76,23 @@ test('empty provider responses are not cached as successful data', async () => {
   const cache = createFredRequestCache({ request: async () => [], sleep: async () => {}, log: () => {} });
   await assert.rejects(cache.load('DGS2'), /temporarily unavailable/);
 });
+
+test('connection failures log a safe classification and nested network code', async () => {
+  const logs = [];
+  const cache = createFredRequestCache({
+    request: async () => { throw Object.assign(new Error('request failed with private request details'), { cause: { code: 'ENOTFOUND' } }); },
+    sleep: async () => {}, log: (...args) => logs.push(args),
+  });
+  await assert.rejects(cache.load('DFF'), /temporarily unavailable/);
+  assert.equal(logs[0][1].failureKind, 'dns');
+  assert.equal(logs[0][1].networkCode, 'ENOTFOUND');
+  assert.ok(!JSON.stringify(logs).includes('private request details'));
+});
+
+test('unexpected FRED payloads are distinguished from connection errors', async () => {
+  const logs = [];
+  const cache = createFredRequestCache({ request: async () => [], sleep: async () => {}, log: (...args) => logs.push(args) });
+  await assert.rejects(cache.load('DFF'), /unexpected data response/);
+  assert.equal(logs[0][1].category, 'invalid_response');
+  assert.equal(logs[0][1].failureKind, 'invalid_payload');
+});
