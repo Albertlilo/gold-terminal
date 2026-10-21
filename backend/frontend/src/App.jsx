@@ -60,7 +60,10 @@ function App() {
         const data = await response.json();
         if (disposed) return;
         if (!data?.gold?.score || !data?.market) throw new Error("Incomplete dashboard response");
-        setDashboardError("");
+        const staleData = data?.meta?.status === "stale";
+        setDashboardError(staleData
+          ? (data.meta.warning || "Economic readings are cached because their provider could not refresh.")
+          : "");
         const closed = !getGoldSession().isOpen || data?.market?.xauusd?.marketClosed;
         if (closed && previousGoldPrice.current !== null) data.market.xauusd.price = previousGoldPrice.current;
         const newGoldPrice = data?.market?.xauusd?.price;
@@ -111,7 +114,10 @@ function App() {
 
         if (closed && previousGoldPrice.current === null && Number.isFinite(newGoldPrice)) previousGoldPrice.current = newGoldPrice;
         setDashboardData(data);
-        setLastSuccessAt(Date.now());
+        const providerSuccessAt = Date.parse(data?.meta?.lastProviderSuccessAt);
+        setLastSuccessAt(staleData
+          ? (Number.isFinite(providerSuccessAt) ? providerSuccessAt : null)
+          : Date.now());
       } catch (error) {
         if (!disposed) setDashboardError(error.name === "AbortError"
           ? "The dashboard request timed out. The server may be waking up."

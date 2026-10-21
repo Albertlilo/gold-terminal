@@ -83,6 +83,16 @@ const goldScore = calculateGoldScore({
   ppi
 });
 
+const seriesResponses = [fedFunds, twoYear, tenYear, fiveYearBreakeven, tenYearBreakeven,
+  dollarIndex, tenYearRealYield, financialStress, vix, highYieldSpread, nonfarmPayrolls,
+  adpEmployment, m2MoneySupply, reverseRepo, treasuryGeneralAccount, corePce, ppi, realGdp,
+  industrialProduction, retailSales, consumerSentiment, housingStarts, initialClaims, unemploymentRate];
+const staleResponses = seriesResponses.filter(series => series.stale);
+const providerSuccessTimes = seriesResponses.map(series => Date.parse(series.fetchedAt)).filter(Number.isFinite);
+const lastProviderSuccessAt = providerSuccessTimes.length
+  ? new Date(Math.min(...providerSuccessTimes)).toISOString()
+  : null;
+
 const bullishDrivers = goldScore.drivers
   .filter(driver => driver.points > 0)
   .slice(0, 3);
@@ -91,7 +101,7 @@ const bearishDrivers = goldScore.drivers
   .filter(driver => driver.points < 0)
   .slice(0, 3);
 
-require("./macroSnapshot").remember(goldScore);
+if (!staleResponses.length) require("./macroSnapshot").remember(goldScore);
 
   const goldSummary =
   goldScore.bias === "Neutral"
@@ -101,7 +111,13 @@ require("./macroSnapshot").remember(goldScore);
   return {
     meta: {
     generatedAt: new Date().toISOString(),
-    source: "FRED"
+    source: "FRED",
+    status: staleResponses.length ? "stale" : "current",
+    lastProviderSuccessAt,
+    staleSeries: staleResponses.map(series => series.series),
+    ...(staleResponses.length ? {
+      warning: "FRED could not refresh. Showing cached economic readings from the last successful provider response; check their observation dates before relying on the macro score."
+    } : {})
     },
     rates: {
       fedFunds: fedFunds.latest,

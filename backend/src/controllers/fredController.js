@@ -6,6 +6,8 @@ const {
   calculateGoldScore
 } = require("../services/goldScoringService");
 const {buildSeriesResponse} = require("../services/fredService");
+const dashboardStore = require("../services/candleStore");
+const { markDashboardStale } = require("../services/dashboardFallback");
 
 const getTwoYearYield = async (req, res) => {
   try {
@@ -590,9 +592,24 @@ const getPpi = async (req, res) => {
 const getDashboard = async (req, res) => {
   try {
     const data = await getDashboardData();
-
+    if (data.meta?.status === "current") {
+      dashboardStore.saveDashboardSnapshot(data).catch(() => {
+        console.warn("Could not save the latest macro dashboard snapshot.");
+      });
+    }
+    if (data.meta?.status === "stale") {
+      const stale = markDashboardStale(data, data.meta.lastProviderSuccessAt, "provider");
+      return res.status(200).json(stale);
+    }
     res.status(200).json(data);
   } catch (error) {
+    try {
+      const snapshot = await dashboardStore.readDashboardSnapshot();
+      const stale = markDashboardStale(snapshot?.data, snapshot?.savedAt, "snapshot");
+      if (stale) return res.status(200).json(stale);
+    } catch {
+      // Keep the provider failure response when Atlas cannot supply a snapshot.
+    }
     res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
 };

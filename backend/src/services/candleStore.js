@@ -2,6 +2,9 @@ let connection;
 let auditCollection;
 let auditIndex;
 let database;
+let dashboardSnapshotCollection;
+let dashboardSnapshotSavedAt = 0;
+let dashboardSnapshotWrite;
 const pushIndexes = new Map();
 
 async function getCollection() {
@@ -54,6 +57,28 @@ module.exports = {
     if (!auditIndex) auditIndex = auditCollection.createIndex({ interval: 1, candleTime: -1 }).catch(error => { auditIndex = null; throw error; });
     await auditIndex;
     return auditCollection;
+  },
+  async saveDashboardSnapshot(data) {
+    const now = Date.now();
+    if (dashboardSnapshotWrite) return dashboardSnapshotWrite;
+    if (now - dashboardSnapshotSavedAt < 5 * 60 * 1000) return;
+    await getCollection();
+    dashboardSnapshotCollection ??= database.collection("macro_dashboard_snapshot");
+    dashboardSnapshotWrite = dashboardSnapshotCollection.replaceOne(
+      { _id: "latest" },
+      { _id: "latest", savedAt: new Date(now), data },
+      { upsert: true }
+    ).then(() => { dashboardSnapshotSavedAt = Date.now(); })
+      .finally(() => { dashboardSnapshotWrite = null; });
+    return dashboardSnapshotWrite;
+  },
+  async readDashboardSnapshot() {
+    await getCollection();
+    dashboardSnapshotCollection ??= database.collection("macro_dashboard_snapshot");
+    const snapshot = await dashboardSnapshotCollection.findOne({ _id: "latest" }, {
+      projection: { _id: 0, savedAt: 1, data: 1 }, maxTimeMS: 5000,
+    });
+    return snapshot ?? null;
   },
   async read(interval, before, limit) {
     const collection = await getCollection();

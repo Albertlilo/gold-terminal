@@ -1,7 +1,9 @@
 // One shared cache and paced queue per server process, rather than per visitor.
-function createFredRequestCache({ request, now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), ttlMs = 600000, spacingMs = 700, log = console.warn }) {
+function createFredRequestCache({ request, now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), ttlMs = 600000, staleTtlMs = 72 * 60 * 60 * 1000, spacingMs = 700, log = console.warn }) {
   const cache = new Map();
   const pending = new Map();
+  const staleResults = new WeakSet();
+  const staleLogTimes = new Map();
   let queue = Promise.resolve();
   let nextStart = 0;
   let blockedUntil = 0;
@@ -19,6 +21,20 @@ function createFredRequestCache({ request, now = Date.now, sleep = ms => new Pro
     const saved = cache.get(key);
     if (saved && now() - saved.at < ttlMs) return saved.data;
     if (pending.has(key)) return pending.get(key);
+    const useStaleOrThrow = error => {
+      const ageMs = saved ? now() - saved.at : Infinity;
+      if (saved && ageMs <= staleTtlMs) {
+        staleResults.add(saved.data);
+        if (now() - (staleLogTimes.get(key) ?? -Infinity) >= 10 * 60 * 1000) {
+          staleLogTimes.set(key, now());
+          log('Serving cached FRED data after refresh failure', {
+            seriesId, ageMinutes: Math.floor(ageMs / 60000),
+          });
+        }
+        return saved.data;
+      }
+      throw error;
+    };
     const promise = (async () => {
       // Reserve a start slot; HTTP responses need not complete serially.
       const slot = queue.then(async () => {
@@ -28,14 +44,17 @@ function createFredRequestCache({ request, now = Date.now, sleep = ms => new Pro
         nextStart = now() + spacingMs;
       });
       queue = slot.catch(() => {});
-      await slot;
       try {
+        await slot;
         const data = await request(seriesId, limit);
         if (!Array.isArray(data) || !data.length) throw new Error('Invalid observations');
         if (cache.size >= 200) cache.delete(cache.keys().next().value);
         cache.set(key, { data, at: now() });
         return data;
       } catch (error) {
+        // A shared provider cooldown can reject queued requests without making
+        // a new upstream call. Reuse recent saved observations when available.
+        if (error === lastFailure && now() < blockedUntil) return useStaleOrThrow(error);
         const status = Number(error.response?.status) || 0;
         const retryHeader = error.response?.headers?.['retry-after'];
         const retrySeconds = Number(retryHeader);
@@ -45,10 +64,13 @@ function createFredRequestCache({ request, now = Date.now, sleep = ms => new Pro
         const cooldown = Math.max(retryMs, status === 403 ? 900000 : 60000);
         const providerText = typeof error.response?.data === 'string'
           ? error.response.data : String(error.response?.data?.error_message || '');
-        const category = /api.?key.*(invalid|registered|set)|invalid.*api.?key/i.test(providerText)
+        const category = error.code === 'FRED_API_KEY_MISSING' ? 'configuration_missing'
+          : /api.?key.*(invalid|registered|set)|invalid.*api.?key/i.test(providerText)
           ? 'api_key_rejected' : /access denied|blocked|forbidden/i.test(providerText)
           ? 'access_blocked' : status === 429 ? 'rate_limit' : 'upstream_failure';
-        const message = status === 403
+        const message = error.code === 'FRED_API_KEY_MISSING'
+          ? 'FRED API key is not configured on the server. Check the FRED_API_KEY environment variable.'
+          : status === 403
           ? 'FRED refused economic-data access (403). Requests are paused for 15 minutes or the provider-requested delay. This is not an Atlas password error.'
           : status === 429 ? 'FRED rate limit reached. Economic-data requests are temporarily paused.'
           : status === 400 || status === 401 ? 'FRED rejected the request. Check the server API key and request configuration.'
@@ -56,15 +78,17 @@ function createFredRequestCache({ request, now = Date.now, sleep = ms => new Pro
         lastFailure = failure(message, status, cooldown);
         blockedUntil = Math.max(blockedUntil, now() + cooldown);
         // Never log Axios error objects, request URLs, response bodies, or API keys.
-        log('FRED request failed', { status, seriesId, category, responseType: typeof error.response?.data, retrySeconds: Math.ceil(cooldown / 1000) });
-        throw lastFailure;
+        const networkCode = typeof error.code === 'string' && /^[A-Z0-9_]{2,40}$/.test(error.code)
+          ? error.code : undefined;
+        log('FRED request failed', { status, seriesId, category, networkCode, responseType: typeof error.response?.data, retrySeconds: Math.ceil(cooldown / 1000) });
+        return useStaleOrThrow(lastFailure);
       }
     })();
     pending.set(key, promise);
     try { return await promise; }
     finally { pending.delete(key); }
   }
-  return { load };
+  return { load, wasStale: data => Array.isArray(data) && staleResults.has(data) };
 }
 
 module.exports = { createFredRequestCache };

@@ -6,7 +6,11 @@ const retrievalTimes = new WeakMap();
 const { createFredRequestCache } = require("./fredRequestCache");
 const fredRequests = createFredRequestCache({
   request: async (seriesId, limit) => {
-    if (!process.env.FRED_API_KEY?.trim()) throw new Error("FRED API key is missing");
+    if (!process.env.FRED_API_KEY?.trim()) {
+      const error = new Error("FRED API key is missing");
+      error.code = "FRED_API_KEY_MISSING";
+      throw error;
+    }
     const response = await axios.get(FRED_BASE_URL + "/series/observations", {
       timeout: 15000,
       params: { series_id: seriesId, api_key: process.env.FRED_API_KEY.trim(), file_type: "json", sort_order: "desc", limit }
@@ -25,6 +29,7 @@ const buildSeriesResponse = async (seriesId, seriesName, limit = 10, unit = rawU
   const observations = cleanObservations(rawObservations);
   if (!observations.length) throw new Error(`No valid observations for ${seriesId}`);
   const fetchedAt = retrievalTimes.get(rawObservations) ?? null;
+  const stale = fredRequests.wasStale(rawObservations);
 
   const latest = { ...observations[0], display: macroPresentation(seriesId, observations, fetchedAt) };
   const previous = observations[1];
@@ -46,6 +51,7 @@ const buildSeriesResponse = async (seriesId, seriesName, limit = 10, unit = rawU
     change,
     direction,
     fetchedAt,
+    stale,
     observations
   };
 };

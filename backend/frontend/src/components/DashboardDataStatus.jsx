@@ -13,7 +13,7 @@ export default function DashboardDataStatus({ lastSuccessAt, busy, error, now, o
           ) : "Not yet received"}
         </span>
         <small>Time received by this browser. Economic indicators follow their own release schedules and may be cached. Candle history updates separately.</small>
-        {error && <p role="alert">{error} {timestamp ? "Displayed values are from the last successful update; do not treat them as current signals." : "Saved candles can still be opened under Technicals."}</p>}
+        {error && <p role="alert">{error} {timestamp ? "The macro score is based on the last successful provider update; check the indicator dates before using it." : "Saved candles can still be opened under Technicals."}</p>}
         {!error && status.tone === "warning" && <p>The last successful update was more than 90 seconds ago. Displayed values may be out of date.</p>}
       </div>
       {(error || status.tone === "warning") && (
