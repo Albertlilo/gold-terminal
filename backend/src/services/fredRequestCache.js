@@ -112,6 +112,8 @@ function createFredRequestCache({ request, now = Date.now, sleep = ms => new Pro
           causeCode: safeCauseCode,
           payloadType: error.payloadType,
           payloadKeys: error.payloadKeys,
+          payloadKind: error.payloadKind,
+          contentType: error.contentType,
           retrySeconds: Math.ceil(cooldown / 1000),
         });
         return useStaleOrThrow(lastFailure);

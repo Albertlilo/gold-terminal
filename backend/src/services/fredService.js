@@ -3,6 +3,35 @@ const FRED_BASE_URL = "https://api.stlouisfed.org/fred";
 const { macroPresentation, cleanObservations, rawUnits } = require('./macroPresentation');
 const retrievalTimes = new WeakMap();
 
+function readFredPayload(response) {
+  let payload = response.data;
+  if (typeof payload === "string") {
+    try { payload = JSON.parse(payload.replace(/^\uFEFF/, "")); }
+    catch { /* Keep the original body for format classification only. */ }
+  }
+  const observations = payload?.observations;
+  if (Array.isArray(observations) && observations.length) return observations;
+
+  const error = new Error("FRED returned an invalid observations payload");
+  error.code = "FRED_INVALID_RESPONSE";
+  error.upstreamStatus = response.status;
+  error.payloadType = Array.isArray(payload) ? "array" : typeof payload;
+  error.payloadKeys = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? Object.keys(payload).filter(key => /^[A-Za-z0-9_-]{1,40}$/.test(key)).slice(0, 12)
+    : [];
+  if (typeof payload === "string") {
+    const start = payload.trimStart().slice(0, 100).toLowerCase();
+    error.payloadKind = /^<!doctype html|^<html\b/.test(start) ? "html"
+      : /^<\?xml\b|^<error\b/.test(start) ? "xml"
+      : /^[\[{]/.test(start) ? "malformed_json" : "plain_text";
+  }
+  const contentType = response.headers?.["content-type"];
+  error.contentType = typeof contentType === "string"
+    ? contentType.split(";")[0].trim().toLowerCase().match(/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/)?.[0]
+    : undefined;
+  throw error;
+}
+
 const { createFredRequestCache } = require("./fredRequestCache");
 const fredRequests = createFredRequestCache({
   request: async (seriesId, limit) => {
@@ -15,17 +44,7 @@ const fredRequests = createFredRequestCache({
       timeout: 15000,
       params: { series_id: seriesId, api_key: process.env.FRED_API_KEY.trim(), file_type: "json", sort_order: "desc", limit }
     });
-    const observations = response.data.observations;
-    if (!Array.isArray(observations) || !observations.length) {
-      const error = new Error("FRED returned an invalid observations payload");
-      error.code = "FRED_INVALID_RESPONSE";
-      error.upstreamStatus = response.status;
-      error.payloadType = Array.isArray(response.data) ? "array" : typeof response.data;
-      error.payloadKeys = response.data && typeof response.data === "object" && !Array.isArray(response.data)
-        ? Object.keys(response.data).filter(key => /^[A-Za-z0-9_-]{1,40}$/.test(key)).slice(0, 12)
-        : [];
-      throw error;
-    }
+    const observations = await readFredPayload(response);
     if (Array.isArray(observations)) retrievalTimes.set(observations, new Date().toISOString());
     return observations;
   }
@@ -68,5 +87,6 @@ const buildSeriesResponse = async (seriesId, seriesName, limit = 10, unit = rawU
 
 module.exports = {
     getSeriesObservations,
-    buildSeriesResponse
+    buildSeriesResponse,
+    readFredPayload
 };

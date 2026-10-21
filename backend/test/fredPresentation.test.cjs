@@ -1,6 +1,21 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+test('FRED observations can be parsed from a JSON text response', () => {
+  const { readFredPayload } = require('../src/services/fredService');
+  const observations = [{ date: '2026-10-20', value: '4.5' }];
+  assert.deepEqual(readFredPayload({ status: 200, headers: { 'content-type': 'text/plain' }, data: JSON.stringify({ observations }) }), observations);
+});
+
+test('FRED HTML response is classified without logging its contents', () => {
+  const { readFredPayload } = require('../src/services/fredService');
+  assert.throws(
+    () => readFredPayload({ status: 200, headers: { 'content-type': 'text/html; charset=UTF-8' }, data: '<html>secret response details</html>' }),
+    error => error.code === 'FRED_INVALID_RESPONSE' && error.payloadKind === 'html'
+      && error.contentType === 'text/html' && !JSON.stringify(error).includes('secret response details'),
+  );
+});
+
 test('backend retains raw scoring inputs and caches source-check time without another HTTP request', async () => {
   const axios = require('axios');
   const original = axios.get;
