@@ -44,6 +44,8 @@ export function makeTechnicalPlan(analysis, { isOpen }) {
   const reason = !isOpen ? "Market closed. Wait for the next session."
     : !analysis.ready ? "The chart is collecting enough completed candles and three separated reactions to confirm a support or resistance zone."
     : analysis.stale ? "Candle data is delayed. Wait for a fresh completed candle."
+    : analysis.state?.endsWith("invalidated") && analysis.setup?.type === "break-retest" && analysis.setup?.phase === "waiting"
+      ? "The reaction failed and price closed through the zone's break trigger. A new break is recorded; confirmation requires a later retest."
     : supportBounce && signal === "Support Bounce" ? "A completed candle touched support and closed bullishly back above the support zone. This is a technical support-bounce confirmation, separate from macro bias and breakout/retest watches."
     : supportBounce && analysis.state === "Support bounce developing" ? "Price has touched the support zone. Wait for a completed bullish close back above its upper edge; a touch alone is not confirmation."
     : supportBounce && analysis.state === "Support bounce invalidated" ? "A completed candle closed below the lower edge of the support zone. The support-bounce setup is invalidated."

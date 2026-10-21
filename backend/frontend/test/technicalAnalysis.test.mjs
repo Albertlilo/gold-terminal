@@ -72,15 +72,39 @@ test('zones freeze at break rather than incorporating new highs',()=>{
   const a=analyse([...broken,row(21,103,102,200),row(22,101.5,100.9,102)]);
   assert.deepEqual(a.zones,analyse(broken).zones);assert.equal(a.confirmation,'Buy Watch');
 });
-test('confirmed replacement structure keeps retired zones out of the live read',()=>{
+test('internal consolidation cannot pull established support and resistance together',()=>{
   const rows=[...base(),...Array.from({length:20},(_,i)=>row(i+20,100,99.7,100.3))];
   const analysis=analyse(rows);
-  assert.ok(Math.abs(analysis.support-99.7)<1e-10);
+  assert.equal(analysis.support,99);
+  assert.equal(analysis.resistance,101);
   assert.equal(analysis.zones.some(zone=>zone.label.startsWith('Previous ')),false);
-  assert.ok(analysis.previousZones.some(zone=>zone.label==='Previous support' && zone.low===99));
-  assert.ok(analysis.previousZones.some(zone=>zone.label==='Previous resistance' && zone.high===101));
+  assert.equal(analysis.previousZones.length,0);
   assert.ok(analysis.structure.supportTouches>=3);
   assert.ok(analysis.structure.resistanceTouches>=3);
+});
+
+test('repeated lows without a completed recovery do not establish support',()=>{
+  const rows=Array.from({length:20},(_,i)=>row(i,99.01,99,101+i*0.1));
+  assert.equal(buildZones(rows),null);
+});
+
+test('failed bounce preserves the support break and requires a later failed retest',()=>{
+  const touch={...row(20,99.3,99.2,100),open:99.6};
+  const broken=[...base(),touch,row(21,98,97,99)];
+  const a=analyse(broken);
+  assert.equal(a.state,'Support bounce invalidated');
+  assert.equal(a.confirmation,'None');
+  assert.equal(a.setup.direction,'sell');
+  assert.equal(a.setup.breakTime,broken.at(-1).time);
+  assert.equal(analyse([...broken,row(22,98.5,98,99.2)]).confirmation,'Sell Watch');
+});
+
+test('an expired breakout cannot restart merely because price stays above resistance',()=>{
+  const rows=[...base(),row(20,102,100,103)];
+  for(let i=21;i<32;i++) rows.push(row(i,103,102,104));
+  const a=analyse(rows);
+  assert.equal(a.confirmation,'None');
+  assert.equal(a.setup,null);
 });
 test('one extreme wick cannot create a new structural zone',()=>{
   const analysis=analyse([...base(),row(20,100,95,105)]);

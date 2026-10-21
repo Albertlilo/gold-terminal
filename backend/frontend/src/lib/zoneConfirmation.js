@@ -4,7 +4,7 @@ export const MIN_ZONE_TOUCHES = 3;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v11-clean-active-structure";
+export const RULE_VERSION = "zones-retest-v12-stable-reaction-zones";
 export const NOISE_PERCENT = 0.05;
 const SWING_RADIUS = 2;
 // Reactions must be separated by several completed candles. This prevents a
@@ -33,7 +33,11 @@ export function buildZones(previous) {
   const rows = previous.slice(-STRUCTURE_LOOKBACK);
   if (rows.length < ZONE_LOOKBACK) return null;
   const recent = rows.slice(-ZONE_LOOKBACK);
-  const averageRange = recent.reduce((sum, row) => sum + row.high - row.low, 0) / recent.length;
+  // True range includes gaps as well as each candle's high/low distance.
+  const averageRange = recent.reduce((sum, row, i) => {
+    const priorClose = i ? recent[i - 1].close : rows[rows.length - recent.length - 1]?.close ?? row.open;
+    return sum + Math.max(row.high - row.low, Math.abs(row.high - priorClose), Math.abs(row.low - priorClose));
+  }, 0) / recent.length;
   const reference = rows.at(-1).close;
   const mergeDistance = Math.max(averageRange * 0.35, reference * 0.0004);
   const points = [];
@@ -53,7 +57,11 @@ export function buildZones(previous) {
   const confirmed = clusters.map(cluster => {
     const separated = [];
     for (const point of cluster.points.sort((a, b) => a.index - b.index)) {
-      if (!separated.length || point.index - separated.at(-1).index >= MIN_TOUCH_SEPARATION) separated.push(point);
+      const recovery = rows.slice(point.index + 1, point.index + SWING_RADIUS + 1);
+      const departure = Math.max(averageRange * 0.25, reference * 0.0001);
+      const reacted = recovery.some(row => cluster.role === "support"
+        ? row.close >= point.price + departure : row.close <= point.price - departure);
+      if (reacted && (!separated.length || point.index - separated.at(-1).index >= MIN_TOUCH_SEPARATION)) separated.push(point);
     }
     return { ...cluster, touches: separated.length, lastTouch: separated.at(-1)?.time ?? null };
   }).filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES);
@@ -70,7 +78,9 @@ export function buildZones(previous) {
   if (!supportCandidate && !resistanceCandidate) return null;
   const baseWidth = Math.max(averageRange * 0.2, reference * 0.00025);
   const gap = supportCandidate && resistanceCandidate ? resistanceCandidate.center - supportCandidate.center : null;
-  const width = gap ? Math.min(gap / 3, baseWidth) : baseWidth;
+  // Do not squeeze the bands to manufacture two tradeable boundaries in chop.
+  if (gap !== null && gap <= 2 * baseWidth + minimumGap) return null;
+  const width = baseWidth;
   const breakBuffer = Math.max(averageRange * 0.2, reference * NOISE_PERCENT / 100);
   const support = supportCandidate ? { label: "Support zone", low: supportCandidate.center, high: supportCandidate.center + width,
     color: "#70d69c", active: true, touches: supportCandidate.touches, lastTouch: supportCandidate.lastTouch } : null;
@@ -136,7 +146,12 @@ export function confirmZones(completed) {
         confirmation = "None";
         zones = setup.zones;
         setup = null;
-        // Do not simultaneously invalidate and start another setup on the same candle.
+        // Preserve an actual break when it also invalidates a reaction. The
+        // new watch still needs a different, later candle to retest the zone.
+        const reactionBreak = invalid && ((supportBounce && clears(candle.close, zones.sell, false))
+          || (resistanceRejection && clears(candle.close, zones.buy, true)));
+        if (reactionBreak) setup = { direction: supportBounce ? "sell" : "buy", index: i,
+          time: candle.time, zones, touchedIndex: null, touchedAt: null, confirmedAt: null, confirmedIndex: null };
         continue;
       }
 
@@ -144,8 +159,8 @@ export function confirmZones(completed) {
       // Otherwise a resistance rejection could stay selected while price has
       // already reached and bounced from support (and vice versa).
       if (setup.type === "support-bounce" || setup.type === "resistance-rejection") {
-        const currentZones = buildZones(completed.slice(0, i));
-        const reactionZones = currentZones || setup.zones;
+        // Opposite reactions use the same frozen range, not freshly moved levels.
+        const reactionZones = setup.zones;
         if (reactionZones) {
           const prior = completed[i - 1];
           const approachingSupport = reactionZones.support && prior.close > reactionZones.support.high
@@ -184,8 +199,9 @@ export function confirmZones(completed) {
       continue;
     }
     confirmation = "None";
-    const buy = zones.resistance && clears(candle.close, zones.buy, true);
-    const sell = zones.support && clears(candle.close, zones.sell, false);
+    const priorClose = completed[i - 1].close;
+    const buy = zones.resistance && !clears(priorClose, zones.buy, true) && clears(candle.close, zones.buy, true);
+    const sell = zones.support && !clears(priorClose, zones.sell, false) && clears(candle.close, zones.sell, false);
     if (buy || sell) {
       setup = { direction: buy ? "buy" : "sell", index: i, time: candle.time, zones, touchedIndex: null, touchedAt: null, confirmedAt: null, confirmedIndex: null };
       state = buy ? "Breakout · awaiting retest" : "Support break · awaiting retest";
@@ -213,7 +229,11 @@ export function confirmZones(completed) {
         // three confirmed swing reactions to introduce a new pair of zones.
         // A recalculation can therefore never hide a break on the same candle.
         const nextZones = buildZones(completed.slice(0, i));
-        if (nextZones && (!sameZone(zones.support, nextZones.support) || !sameZone(zones.resistance, nextZones.resistance))) {
+        // Keep an established two-sided range while price is still inside it.
+        // Smaller internal swings are not evidence that its boundaries failed.
+        const insideEstablishedRange = zones.support && zones.resistance
+          && candle.close >= zones.support.low && candle.close <= zones.resistance.high;
+        if (!insideEstablishedRange && nextZones && (!sameZone(zones.support, nextZones.support) || !sameZone(zones.resistance, nextZones.resistance))) {
           previousZones = archiveChangedZones(previousZones, zones, nextZones, candle.time);
           zones = nextZones;
           state = structureState(zones);
