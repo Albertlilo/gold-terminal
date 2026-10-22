@@ -1,5 +1,6 @@
-// Chart annotations only. These levels never enter technical setup decisions.
-export function historicalSupports(candles) {
+// Completed-candle reactions shared by chart references and the older-floor
+// fallback. The caller decides whether a level is still valid near price.
+export function historicalSupports(candles, minTouches = 3) {
   if (candles.length < 15) return [];
   const clusters = [];
   for (let i = 2; i < candles.length - 2; i++) {
@@ -23,7 +24,7 @@ export function historicalSupports(candles) {
     cluster.points.push({ index: i, time: candle.time, price: candle.low });
     cluster.price = cluster.points.reduce((sum, point) => sum + point.price, 0) / cluster.points.length;
   }
-  return clusters.filter(item => item.points.length >= 3).map(item => ({
+  return clusters.filter(item => item.points.length >= minTouches).map(item => ({
     id: `past-support-${item.points[0].time}`,
     label: "Past support · reference",
     low: item.price,

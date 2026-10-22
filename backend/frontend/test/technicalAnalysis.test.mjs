@@ -157,6 +157,31 @@ test('old swing levels far outside the current structure are not promoted as act
   const currentTrend=Array.from({length:20},(_,i)=>row(i+20,120+i*0.1,115+i*0.1,121+i*0.1));
   assert.equal(buildZones([...oldSupport,...currentTrend]),null);
 });
+test('older confirmed floor can supply current support when price returns near it',()=>{
+  const old=Array.from({length:30},(_,i)=>row(i,100,[4,10,16].includes(i)?95:99,101));
+  const later=Array.from({length:130},(_,i)=>row(i+30,100,99-i*0.025,101));
+  const zones=buildZones([...old,...later]);
+  assert.equal(zones.support.low,95);
+  assert.equal(zones.support.source,'older_history');
+  assert.ok(zones.support.touches>=3);
+  const daily=[...old,...later].map((candle,i)=>({...candle,time:testSessionStart+(i+1)*86400}));
+  const analysis=analyse(daily,'1day',86400);
+  assert.ok(analysis.zones.some(zone=>zone.label==='Support zone'));
+});
+test('a completed close below an older floor prevents reactivating it',()=>{
+  const old=Array.from({length:30},(_,i)=>row(i,100,[4,10,16].includes(i)?95:99,101));
+  const breakRow=row(30,94,93,101);
+  const later=Array.from({length:130},(_,i)=>row(i+31,100,99-i*0.025,101));
+  const zones=buildZones([...old,breakRow,...later]);
+  assert.equal(zones?.support??null,null);
+});
+test('two older reactions need a completed bullish return before becoming support',()=>{
+  const old=Array.from({length:30},(_,i)=>row(i,100,[4,10].includes(i)?95:99,101));
+  const later=Array.from({length:130},(_,i)=>row(i+30,100,99-i*0.025,101));
+  const returnCandle={...row(160,100,95.5,101),open:97};
+  assert.notEqual(buildZones([...old,...later,{...returnCandle,open:100}])?.support?.low,95);
+  assert.equal(buildZones([...old,...later,returnCandle]).support.low,95);
+});
 test('wrong-side close invalidates and a late retest cannot revive expired setup',()=>{
   assert.equal(analyse([...base(),row(20,102,100,103),row(21,100,99,102)]).state,'Retest invalidated');
   const rows=[...base(),row(20,102,100,103)];

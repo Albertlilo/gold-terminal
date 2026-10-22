@@ -4,7 +4,9 @@ export const MIN_ZONE_TOUCHES = 3;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v14-lower-support";
+import { historicalSupports } from "./historicalSupport.js";
+
+export const RULE_VERSION = "zones-retest-v15-historical-floor";
 export const NOISE_PERCENT = 0.05;
 const SWING_RADIUS = 2;
 // Reactions must be separated by several completed candles. This prevents a
@@ -76,18 +78,30 @@ export function buildZones(previous) {
       && cluster.center < reference - minimumGap && cluster.center >= recentLow - activeMargin
       && cluster.center <= lowerBand)
     .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];
+  // If the recent candles have not formed a floor, check older, independently
+  // tested lows near the current range. Broken or distant history stays inactive.
+  const historicalFloor = !supportCandidate && historicalSupports(previous.slice(-500), 2)
+    .filter(zone => zone.high < reference - minimumGap
+      && Math.abs(zone.low - recentLow) <= Math.max(averageRange * 1.5, reference * 0.001)
+      && (zone.touches >= MIN_ZONE_TOUCHES || recent.slice(-3).some(row => row.low <= zone.high + minimumGap
+        && row.close > zone.high && row.close > row.open))
+      && !previous.some(row => row.time > zone.lastTime && row.close < zone.low - minimumGap))
+    .sort((a, b) => Math.abs(a.low - recentLow) - Math.abs(b.low - recentLow) || b.touches - a.touches)[0];
   const resistanceCandidate = confirmed.filter(cluster => cluster.role === "resistance"
       && cluster.center > reference + minimumGap && cluster.center <= recentHigh + activeMargin)
     .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];
-  if (!supportCandidate && !resistanceCandidate) return null;
+  if (!supportCandidate && !historicalFloor && !resistanceCandidate) return null;
   const baseWidth = Math.max(averageRange * 0.2, reference * 0.00025);
-  const gap = supportCandidate && resistanceCandidate ? resistanceCandidate.center - supportCandidate.center : null;
+  const supportPrice = supportCandidate?.center ?? historicalFloor?.low;
+  const gap = supportPrice && resistanceCandidate ? resistanceCandidate.center - supportPrice : null;
   // Do not squeeze the bands to manufacture two tradeable boundaries in chop.
   if (gap !== null && gap <= 2 * baseWidth + minimumGap) return null;
   const width = baseWidth;
   const breakBuffer = Math.max(averageRange * 0.2, reference * NOISE_PERCENT / 100);
-  const support = supportCandidate ? { label: "Support zone", low: supportCandidate.center, high: supportCandidate.center + width,
-    color: "#70d69c", active: true, touches: supportCandidate.touches, lastTouch: supportCandidate.lastTouch } : null;
+  const support = supportPrice ? { label: "Support zone", low: supportPrice, high: supportPrice + width,
+    color: "#70d69c", active: true, touches: supportCandidate?.touches ?? historicalFloor.touches,
+    lastTouch: supportCandidate?.lastTouch ?? historicalFloor.lastTime,
+    source: supportCandidate ? "recent" : "older_history" } : null;
   const resistance = resistanceCandidate ? { label: "Resistance zone", low: resistanceCandidate.center - width, high: resistanceCandidate.center,
     color: "#ef7b7b", active: true, touches: resistanceCandidate.touches, lastTouch: resistanceCandidate.lastTouch } : null;
   return { support, resistance, buy: resistance ? resistance.high + breakBuffer : null,
