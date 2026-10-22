@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyseCandles, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
+import { analyseCandles, getSetupStage, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
 import { getGoldSession } from '../src/lib/goldSession.js';
 import { buildZones } from '../src/lib/zoneConfirmation.js';
 const row = (i, close=100, low=99, high=101, seconds=300) => ({time:(i+1)*seconds,open:close,close,low,high});
@@ -11,11 +11,13 @@ test('price breakout alone, including a same-candle touch, cannot trigger Buy Wa
   const a=analyse([...base(),row(20,102,100,103)]);
   assert.equal(a.state,'Breakout · awaiting retest');assert.equal(a.confirmation,'None');
   assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Wait');
+  assert.equal(getSetupStage(a).label,'Buy setup forming');
 });
 test('successful later resistance retest confirms Buy Watch',()=>{
   const a=analyse([...base(),row(20,102,100,103),row(21,101.5,100.9,102)]);
   assert.equal(a.confirmation,'Buy Watch');assert.equal(a.state,'Successful retest');
   assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Buy Watch');
+  assert.equal(getSetupStage(a).label,'Buy setup confirmed');
 });
 test('support break requires a failed retest before Sell Watch',()=>{
   const rows=[...base(),row(20,98,97,100)];
@@ -23,6 +25,7 @@ test('support break requires a failed retest before Sell Watch',()=>{
   const a=analyse([...rows,row(21,98.5,98,99.2)]);
   assert.equal(a.confirmation,'Sell Watch');assert.equal(a.state,'Failed support retest');
   assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Sell Watch');
+  assert.equal(getSetupStage(a).label,'Sell setup confirmed');
 });
 test('support approach starts a separate buy setup and bullish reclaim confirms Support Bounce',()=>{
   const touch = { ...row(20,99.3,99.2,100), open:99.6 };

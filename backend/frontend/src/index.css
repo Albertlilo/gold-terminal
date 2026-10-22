@@ -2641,7 +2641,8 @@ textarea {
 .coverage-grid p { color:#aaa; font-size:13px; line-height:1.6; margin:0; }
 @media(max-width:650px) { .coverage-grid { grid-template-columns:1fr; gap:18px; }.upcoming-coverage .terminal-panel-title { flex-wrap:wrap; }.upcoming-coverage .terminal-panel-title > span { display:block; } }
 
-.technical-only-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.technical-only-summary { grid-template-columns:repeat(3,minmax(0,1fr)); }
+@media(max-width:850px) { .technical-only-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:560px) { .technical-only-summary { grid-template-columns:1fr; } }
 /* Phone notifications use the same cards and gold accents as technical analysis. */
 .phone-alert-fields, .phone-alert-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }

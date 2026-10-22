@@ -68,3 +68,16 @@ export function makeTechnicalPlan(analysis, { isOpen }) {
     invalidation: supportBounce ? "Completed close below the support zone" : resistanceRejection ? "Completed close above the resistance zone" : direction === "sell" ? "Completed close above the support zone" : direction === "buy" ? "Completed close below the resistance zone" : "No active technical setup",
   };
 }
+
+export function getSetupStage(analysis) {
+  const direction = analysis.setup?.direction;
+  if (direction !== "buy" && direction !== "sell") {
+    return { label: "Waiting for setup", detail: "No active buy or sell pattern on this timeframe.", tone: "neutral" };
+  }
+  const side = direction === "buy" ? "Buy" : "Sell";
+  const confirmed = analysis.confirmation !== "None" && analysis.setup?.confirmedAt != null;
+  const detail = confirmed ? "Completed-candle conditions met; review invalidation before acting."
+    : analysis.setup?.phase === "waiting" ? "Break recorded; a later retest is still needed."
+    : "The pattern is developing; wait for a completed confirming candle.";
+  return { label: `${side} setup ${confirmed ? "confirmed" : "forming"}`, detail, tone: direction === "buy" ? "up" : "down" };
+}

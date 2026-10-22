@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import GoldCandleChart from "../components/GoldCandleChart";
-import { analyseCandles, makeTechnicalPlan, TIMEFRAMES } from "../lib/technicalAnalysis";
+import { analyseCandles, getSetupStage, makeTechnicalPlan, TIMEFRAMES } from "../lib/technicalAnalysis";
 import { getGoldSession } from "../lib/goldSession";
 import SignalReview from "../components/SignalReview";
 import { RULE_VERSION } from "../lib/zoneConfirmation";
@@ -17,6 +17,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
   const [history, setHistory] = useState({});
   const [showWatchLevels, setShowWatchLevels] = useState(true);
   const [showZones, setShowZones] = useState(true);
+  const [showPreviousZones, setShowPreviousZones] = useState(true);
   const [audits, setAudits] = useState({});
   const receiveAudit = useCallback((timeframe, audit) => setAudits(previous => ({ ...previous, [timeframe]: audit })), []);
   const receiveCandles = useCallback((timeframe, candles) => setHistory(previous => ({ ...previous, [timeframe]: candles })), []);
@@ -27,8 +28,17 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
   const versionMismatch = audit?.status === "saved" && audit.ruleVersion !== RULE_VERSION;
   const recorded = audit?.status === "saved" && !versionMismatch ? audit.analysis : null;
   const analysis = recorded ? { ...recorded, stale: now / 1000 - (recorded.lastTime + TIMEFRAMES[interval].seconds) > Math.max(TIMEFRAMES[interval].seconds * 2, 900) } : calculated;
+  const activeZones = Array.isArray(analysis.zones) ? analysis.zones : [];
+  const previousZones = ["support", "resistance"].map(role => {
+    const retired = (analysis.previousZones || []).filter(zone => zone.role === role);
+    return retired.at(-1);
+  }).filter(zone => zone && !activeZones.some(active => active.label === `${zone.role === "support" ? "Support" : "Resistance"} zone`
+    && Math.abs((active.low + active.high) / 2 - (zone.low + zone.high) / 2) <= Math.max(active.high - active.low, zone.high - zone.low)));
+  const hasSupport = activeZones.some(zone => zone.label === "Support zone");
+  const hasResistance = activeZones.some(zone => zone.label === "Resistance zone");
   const calculatedPlan = makeTechnicalPlan(analysis, { isOpen: session.isOpen });
   const plan = versionMismatch ? { ...calculatedPlan, signal: "Wait", reason: "The backend still has the previous technical rules. Wait for both deployments to finish before using the technical signal." } : calculatedPlan;
+  const setupStage = getSetupStage(analysis);
   return (
     <div className="technical-terminal">
       <header className="terminal-brand">
@@ -46,6 +56,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
       {dashboardData?.market?.xauusd?.fallback && <p className="coverage-status">Quote fallback active · showing the last available price, not a fresh live quote.</p>}
       <section className="terminal-summary technical-only-summary" aria-label="Signal summary">
         <article className="terminal-card summary-card tone-neutral"><span className="terminal-eyebrow">↗ &nbsp; Technical State</span><h2>{analysis.state}</h2><p>{TIMEFRAMES[interval].label} · completed candles</p><p>{analysis.state === "Between zones" ? "No confirmation yet" : analysis.stale ? "Delayed candle data" : "Volatility-adjusted break clearance"}</p></article>
+        <article className={`terminal-card summary-card tone-${setupStage.tone}`}><span className="terminal-eyebrow">◉ &nbsp; Setup Stage</span><h2>{setupStage.label}</h2><p>{setupStage.detail}</p>{(analysis.stale || !session.isOpen || versionMismatch) && <p>Historical or unavailable for a fresh signal right now.</p>}</article>
         <article className={`terminal-card summary-card tone-${["Sell Watch", "Resistance Rejection"].includes(plan.signal) ? "down" : ["Buy Watch", "Support Bounce"].includes(plan.signal) ? "up" : "neutral"}`}><span className="terminal-eyebrow">◎ &nbsp; Technical Signal</span><h2 className="technical-signal">{plan.signal.toUpperCase()}</h2><p>{plan.reason}</p></article>
       </section>
       <section className="terminal-card read-panel">
@@ -55,7 +66,8 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
       <div className="terminal-chart-wrap">
         <label className="watch-toggle"><input type="checkbox" checked={showWatchLevels} onChange={event => setShowWatchLevels(event.target.checked)} />Show Buy / Sell Watch triggers</label>
         <label className="watch-toggle"><input type="checkbox" checked={showZones} onChange={event => setShowZones(event.target.checked)} />Show support / resistance zones</label>
-        <GoldCandleChart zones={showZones ? analysis.zones : []} interval={interval} onIntervalChange={setInterval} onCandlesChange={receiveCandles} onAuditChange={receiveAudit} watchLevels={showWatchLevels ? analysis.levels : []} />
+        {previousZones.length > 0 && <label className="watch-toggle"><input type="checkbox" checked={showPreviousZones} onChange={event => setShowPreviousZones(event.target.checked)} />Show previous zones (inactive)</label>}
+        <GoldCandleChart zones={showZones ? [...activeZones, ...(showPreviousZones ? previousZones.map(zone => ({ ...zone, label: `${zone.label} · inactive` })) : [])] : []} interval={interval} onIntervalChange={setInterval} onCandlesChange={receiveCandles} onAuditChange={receiveAudit} watchLevels={showWatchLevels ? analysis.levels : []} />
       </div>
       <section className="terminal-card timeframe-panel">
         <div className="terminal-panel-title"><h2>Timeframe Analysis</h2><span>COMPLETED CANDLES ONLY</span></div>
@@ -65,9 +77,10 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <p className="analysis-method">Selected timeframe: {TIMEFRAMES[interval].label}. A retest can develop across several completed candles. There are separate limits of 10 bars to first touch, 10 bars from that touch to recovery, and 10 bars from confirmation. Repeated touches do not reset the clock. A close through the far zone edge still invalidates the setup; the zone boundary is not a recommended broker stop loss.</p>
         {analysis.setup && <div className="technical-confirmation"><strong>{analysis.state}</strong> · {analysis.setup.barsRemaining} completed-bar step(s) until this phase expires.<br />{analysis.setup.type === "support-bounce" ? "Support approach candle opened" : analysis.setup.type === "resistance-rejection" ? "Resistance approach candle opened" : "Break candle opened"}: {stamp((analysis.setup.startTime ?? analysis.setup.breakTime) * 1000)}<br />{analysis.setup.type === "support-bounce" ? "Support touch" : analysis.setup.type === "resistance-rejection" ? "Resistance touch" : "First retest touch"}: {analysis.setup.touchedAt ? stamp((analysis.setup.touchedAt + TIMEFRAMES[interval].seconds) * 1000) : "Still waiting"}<br />Confirmation: {analysis.setup.confirmedAt ? stamp((analysis.setup.confirmedAt + TIMEFRAMES[interval].seconds) * 1000) : "Not confirmed"}<br /><small>Local times. The countdown is not a guaranteed entry window; invalidation can happen on the next completed candle.</small></div>}
         {analysis.ready && !recorded && <p className="analysis-method">Provisional calculation · no verified saved decision is available for this response.</p>}
-        <div className="zone-readout">{analysis.zones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label}: {money(zone.low)}–{money(zone.high)}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}</span>)}</div>
+        <div className="zone-readout">{activeZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label}: {money(zone.low)}–{money(zone.high)}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}</span>)}{previousZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label} (inactive): {money(zone.low)}–{money(zone.high)}</span>)}</div>
+        <p className="analysis-method">Setup availability: {hasSupport ? "Support Bounce and Sell Watch can form from active support." : "Support Bounce and Sell Watch are waiting for a newly confirmed support zone."} {hasResistance ? "Resistance Rejection and Buy Watch can form from active resistance." : "Resistance Rejection and Buy Watch are waiting for a newly confirmed resistance zone."} Previous zones are historical references only and never trigger a new setup.</p>
         <div className="analysis-metrics"><div><span>Last completed close</span><strong>{money(analysis.close)}</strong></div><div><span>Window momentum</span><strong>{Number.isFinite(analysis.move) ? `${analysis.move > 0 ? "+" : ""}${analysis.move.toFixed(3)}%` : "—"}</strong></div><div><span>Support lower edge</span><strong>{money(analysis.support)}</strong></div><div><span>Resistance upper edge</span><strong>{money(analysis.resistance)}</strong></div><div><span>Support reactions</span><strong>{analysis.structure?.supportTouches ?? "—"}</strong></div><div><span>Resistance reactions</span><strong>{analysis.structure?.resistanceTouches ?? "—"}</strong></div></div>
-        <p className="analysis-method">Active zones come from clustered swing highs and lows across up to 120 completed candles, but only levels near the latest 20-candle price structure can become active. A zone needs at least three separated swing reactions with completed closes moving away from the level. Established range boundaries stay fixed while price remains inside them; smaller internal swings do not pull support and resistance together. Volatility includes gaps, and cramped candidate bands are rejected. The live chart shows only the current validated support and resistance; retired levels remain in the audit history without cluttering the decision. Breakout/retest watches need a fresh completed crossing beyond a volatility buffer, followed by a later retest and recovery. During that setup, the original zone stays visible: broken support is tested as resistance, and broken resistance is tested as support. A close through its far edge invalidates the retest. An expired break cannot restart just because price remains beyond the level. Support Bounce and Resistance Rejection remain separate reaction setups. Forming candles never confirm, and macro never creates or filters a technical signal. These rules still require forward testing and do not guarantee profitability.</p>
+        <p className="analysis-method">Active zones come from clustered swing highs and lows across up to 120 completed candles, but only levels near the latest 20-candle price structure can become active. A zone needs at least three separated swing reactions with completed closes moving away from the level. Established range boundaries stay fixed while price remains inside them; smaller internal swings do not pull support and resistance together. Volatility includes gaps, and cramped candidate bands are rejected. The latest retired support and resistance can be shown as faint historical references. Breakout/retest watches need a fresh completed crossing beyond a volatility buffer, followed by a later retest and recovery. During that setup, the original zone stays visible: broken support is tested as resistance, and broken resistance is tested as support. A close through its far edge invalidates the retest. An expired break cannot restart just because price remains beyond the level. Support Bounce and Resistance Rejection remain separate reaction setups. Forming candles never confirm, and macro never creates or filters a technical signal. These rules still require forward testing and do not guarantee profitability.</p>
         {analysis.lastTime && <p className="analysis-method">Last analysed candle opened: {new Date(analysis.lastTime * 1000).toUTCString()}</p>}
       </section>
       <section className="terminal-card trading-plan">
