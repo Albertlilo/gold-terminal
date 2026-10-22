@@ -4,7 +4,7 @@ export const MIN_ZONE_TOUCHES = 3;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v13-session-candles";
+export const RULE_VERSION = "zones-retest-v14-lower-support";
 export const NOISE_PERCENT = 0.05;
 const SWING_RADIUS = 2;
 // Reactions must be separated by several completed candles. This prevents a
@@ -69,9 +69,13 @@ export function buildZones(previous) {
   const recentLow = Math.min(...recent.map(row => row.low));
   const recentHigh = Math.max(...recent.map(row => row.high));
   const activeMargin = Math.max(averageRange * 2, reference * NOISE_PERCENT / 100);
+  // Demand is the lower boundary of the observed range. An internal swing
+  // near resistance is not promoted to support while the floor is unconfirmed.
+  const lowerBand = recentLow + (recentHigh - recentLow) * 0.35;
   const supportCandidate = confirmed.filter(cluster => cluster.role === "support"
-      && cluster.center < reference - minimumGap && cluster.center >= recentLow - activeMargin)
-    .sort((a, b) => b.center - a.center || b.touches - a.touches)[0];
+      && cluster.center < reference - minimumGap && cluster.center >= recentLow - activeMargin
+      && cluster.center <= lowerBand)
+    .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];
   const resistanceCandidate = confirmed.filter(cluster => cluster.role === "resistance"
       && cluster.center > reference + minimumGap && cluster.center <= recentHigh + activeMargin)
     .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];

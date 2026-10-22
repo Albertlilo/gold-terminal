@@ -1,5 +1,5 @@
 const { createHash } = require("node:crypto");
-const RULE_VERSION = "zones-retest-v13-session-candles";
+const RULE_VERSION = "zones-retest-v14-lower-support";
 
 function createSignalAuditService({ analyse, plan, store, now = Date.now, session }) {
   const cache = new Map();

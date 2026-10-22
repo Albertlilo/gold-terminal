@@ -92,6 +92,14 @@ test('repeated lows without a completed recovery do not establish support',()=>{
   assert.equal(buildZones(rows),null);
 });
 
+test('an upper internal reaction is not mislabeled support while the lower floor is unconfirmed',()=>{
+  const rows=base();
+  rows[19]={...rows[19],low:90};
+  const zones=buildZones(rows);
+  assert.equal(zones.support,null);
+  assert.equal(zones.resistance.high,101);
+});
+
 test('failed bounce preserves the support break and requires a later failed retest',()=>{
   const touch={...row(20,99.3,99.2,100),open:99.6};
   const broken=[...base(),touch,row(21,98,97,99)];

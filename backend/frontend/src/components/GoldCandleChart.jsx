@@ -13,23 +13,33 @@ const stamp = time => new Date(time * 1000).toLocaleString("en-GB", {
 
 export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange, onAuditChange }) {
   const [localInterval, setIntervalValue] = useState("5min");
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = event => { if (event.key === "Escape") setExpanded(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", onKeyDown); };
+  }, [expanded]);
   const interval = selectedInterval || localInterval;
   return (
-    <section className="chart-panel candle-panel">
+    <section className={`chart-panel candle-panel${expanded ? " candle-panel-expanded" : ""}`}>
       <div className="chart-header candle-header">
         <div><span className="section-label">XAUUSD · Saved history</span><h3>Gold Candles</h3></div>
+        <button className="candle-expand" type="button" aria-pressed={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "Close full screen" : "Full screen chart"}</button>
         <label className="candle-timeframe">Timeframe
           <select value={interval} onChange={event => (onIntervalChange || setIntervalValue)(event.target.value)}>
             <option value="5min">5 minutes</option><option value="1h">1 hour</option><option value="1day">1 day</option>
           </select>
         </label>
       </div>
-      <CandleView key={interval} interval={interval} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} onAuditChange={onAuditChange} />
+      <CandleView key={interval} interval={interval} expanded={expanded} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} onAuditChange={onAuditChange} />
     </section>
   );
 }
 
-function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChange }) {
+function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, onAuditChange }) {
   const [magnify, setMagnify] = useState(true);
   const [fitLevels, setFitLevels] = useState(false);
   const [candles, setCandles] = useState([]);
@@ -40,6 +50,7 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
   const [endTime, setEndTime] = useState(null);
   const [hover, setHover] = useState(null);
   const [width, setWidth] = useState(800);
+  const [viewportHeight, setViewportHeight] = useState(() => typeof window === "undefined" ? 700 : window.innerHeight);
   const chartRef = useRef(null);
   const dragRef = useRef(null);
   const pointers = useRef(new Map());
@@ -48,6 +59,12 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
   const olderRequest = useRef(null);
   const retryRef = useRef(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => { onCandlesChange?.(interval, candles); }, [interval, candles, onCandlesChange]);
 
@@ -172,7 +189,7 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
   const { min, max, quiet } = candlePriceBounds(low, high, magnify);
   const axisWidth = Math.max(90, Math.max(min.toFixed(2).length, max.toFixed(2).length) * 7.5 + 24);
   const plotWidth = Math.max(60, width - axisWidth - 16);
-  const height = width < 560 ? 380 : 440;
+  const height = expanded ? Math.max(440, Math.round(viewportHeight * 0.68)) : width < 560 ? 380 : 440;
   const top = 24, bottom = height - 38;
   const plotHeight = bottom - top;
   const y = price => bottom - ((price - min) / (max - min)) * plotHeight;
