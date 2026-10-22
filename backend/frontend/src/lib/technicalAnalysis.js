@@ -1,5 +1,5 @@
 import { confirmZones } from "./zoneConfirmation.js";
-import { mergeCandles } from "./candles.js";
+import { mergeCandles, sessionCandles } from "./candles.js";
 
 export const TIMEFRAMES = { "5min": { label: "5 minutes", seconds: 300 }, "1h": { label: "1 hour", seconds: 3600 }, "1day": { label: "Daily", seconds: 86400 } };
 export const NOISE_PERCENT = 0.1;
@@ -7,7 +7,7 @@ export const NOISE_PERCENT = 0.1;
 export function analyseCandles(rows, interval, now) {
   const duration = TIMEFRAMES[interval]?.seconds;
   const source = Array.isArray(rows) ? rows : [];
-  const valid = mergeCandles([], source);
+  const valid = sessionCandles(mergeCandles([], source), interval);
   const invalid = source.some(row => !mergeCandles([], [row]).length);
   const completed = valid.filter(row => row.time + duration <= now / 1000);
   const window = completed.slice(-20);

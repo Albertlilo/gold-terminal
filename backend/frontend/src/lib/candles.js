@@ -1,3 +1,21 @@
+import { getGoldSession } from "./goldSession.js";
+
+const sessionOpenCache = new Map();
+
+export function sessionCandles(rows, interval) {
+  const duration = interval === "5min" ? 300 : interval === "1h" ? 3600 : null;
+  if (!duration || !Array.isArray(rows)) return Array.isArray(rows) ? rows : [];
+  return rows.filter(candle => {
+    if (!Number.isFinite(candle.time)) return false;
+    const key = candle.time + duration / 2;
+    if (!sessionOpenCache.has(key)) {
+      if (sessionOpenCache.size >= 20000) sessionOpenCache.clear();
+      sessionOpenCache.set(key, getGoldSession(key * 1000).isOpen);
+    }
+    return sessionOpenCache.get(key);
+  });
+}
+
 export function mergeCandles(existing, incoming) {
   const rows = new Map(existing.map(candle => [candle.time, candle]));
   for (const candle of incoming) {

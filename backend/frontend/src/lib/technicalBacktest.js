@@ -1,5 +1,5 @@
 import { analyseCandles, TIMEFRAMES } from "./technicalAnalysis.js";
-import { mergeCandles } from "./candles.js";
+import { mergeCandles, sessionCandles } from "./candles.js";
 import { getGoldSession } from "./goldSession.js";
 
 export function riskReward(entry, stop, target, direction) {
@@ -15,7 +15,7 @@ export function backtestCandles(rows, interval, { now, cost, rewardMultiple = 2,
   if (!seconds || !Number.isFinite(now) || !Number.isFinite(cost) || cost < 0 || !Number.isFinite(rewardMultiple) || rewardMultiple <= 0 || !Number.isInteger(maxBars) || maxBars < 1) throw Error("Enter valid replay assumptions.");
   const valid = mergeCandles([], rows);
   if (valid.length !== rows.length) throw Error("Replay needs valid, unique candles.");
-  const candles = valid.filter(row => (row.time + seconds) * 1000 <= now);
+  const candles = sessionCandles(valid, interval).filter(row => (row.time + seconds) * 1000 <= now);
   if (candles.length > 2000) throw Error("Replay supports up to 2,000 loaded candles. Reload the timeframe to use a smaller window.");
   if (candles.length < 22) throw Error("Load at least 22 completed candles to replay an entry.");
   const trades = [], signals = [], used = new Set();

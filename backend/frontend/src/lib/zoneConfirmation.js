@@ -4,7 +4,7 @@ export const MIN_ZONE_TOUCHES = 3;
 export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
-export const RULE_VERSION = "zones-retest-v12-stable-reaction-zones";
+export const RULE_VERSION = "zones-retest-v13-session-candles";
 export const NOISE_PERCENT = 0.05;
 const SWING_RADIUS = 2;
 // Reactions must be separated by several completed candles. This prevents a

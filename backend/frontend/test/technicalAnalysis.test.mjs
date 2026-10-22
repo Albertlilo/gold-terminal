@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { analyseCandles, getSetupStage, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
 import { getGoldSession } from '../src/lib/goldSession.js';
 import { buildZones } from '../src/lib/zoneConfirmation.js';
-const row = (i, close=100, low=99, high=101, seconds=300) => ({time:(i+1)*seconds,open:close,close,low,high});
+const testSessionStart = Date.parse('2026-10-19T22:00:00Z') / 1000;
+const row = (i, close=100, low=99, high=101, seconds=300) => ({time:testSessionStart+(i+1)*seconds,open:close,close,low,high});
 const base = (seconds=300) => Array.from({length:20},(_,i)=>row(i,100,99,101,seconds));
 const analyse = (rows, interval='5min', seconds=300) => analyseCandles(rows,interval,(rows.at(-1).time+seconds)*1000);
 
@@ -114,6 +115,12 @@ test('one extreme wick cannot create a new structural zone',()=>{
   assert.equal(analysis.support,99);
   assert.equal(analysis.resistance,101);
   assert.equal(analysis.confirmation,'None');
+});
+
+test('saved candles from closed hours cannot change intraday technical levels',()=>{
+  const closed = { ...row(20,200,190,210), time: Date.parse('2026-10-22T21:00:00Z') / 1000 };
+  const reopened = { ...row(21), time: Date.parse('2026-10-22T22:00:00Z') / 1000 };
+  assert.deepEqual(analyse([...base(), closed, reopened]), analyse([...base(), reopened]));
 });
 test('confirmed support is shown while resistance is still forming',()=>{
   const supportOnly=Array.from({length:20},(_,i)=>row(i,100,90,101+i*0.1));

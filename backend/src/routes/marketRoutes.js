@@ -7,14 +7,16 @@ const router = express.Router();
 router.use(require('../services/accountRuntime').requirePremium);
 const { createSignalAuditService } = require("../services/signalAuditService");
 let auditService;
+let auditSessionCandles;
 async function auditHistory(interval, candles) {
   if (!auditService) {
     const { analyseCandles, makeTechnicalPlan } = await import("../../frontend/src/lib/technicalAnalysis.js");
+    auditSessionCandles = (await import("../../frontend/src/lib/candles.js")).sessionCandles;
     auditService = createSignalAuditService({ analyse: analyseCandles, plan: makeTechnicalPlan,
       store: require("../services/signalAuditStore"),
       session: getGoldSession });
   }
-  return auditService(interval, candles);
+  return auditService(interval, auditSessionCandles(candles, interval));
 }
 async function boundedAudit(interval, candles) {
   let timer;

@@ -1,6 +1,6 @@
 import { getGoldSession } from "../lib/goldSession";
 import { useEffect, useRef, useState } from "react";
-import { candleWindow, mergeCandles, candlePriceBounds } from "../lib/candles";
+import { candleWindow, mergeCandles, candlePriceBounds, sessionCandles } from "../lib/candles";
 import { requestHistory } from "../lib/historyRequest";
 import { accountFetch } from '../lib/accountClient';
 import { clampCount, panWindow, olderPage } from "../lib/chartNavigation";
@@ -155,7 +155,9 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
     }
   }
 
-  const visible = candleWindow(candles, count, endTime);
+  const chartCandles = sessionCandles(candles, interval);
+  const hiddenClosed = candles.length - chartCandles.length;
+  const visible = candleWindow(chartCandles, count, endTime);
   const selected = visible[hover?.index] || visible.at(-1);
   const levels = watchLevels.filter(level => Number.isFinite(level.price) && level.price > 0);
   const bands = zones.filter(zone => Number.isFinite(zone.low) && Number.isFinite(zone.high));
@@ -179,7 +181,7 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
   const crossPrice = hover ? Math.max(min, Math.min(max, hover.price)) : null;
 
   function moveBy(amount) {
-    const next = panWindow(candles, count, endTime, amount);
+    const next = panWindow(chartCandles, count, endTime, amount);
     setEndTime(next.endTime);
     setHover(null);
     if (next.needsOlder) void loadOlder(true);
@@ -290,7 +292,8 @@ function CandleView({ interval, watchLevels, zones, onCandlesChange, onAuditChan
         </svg>
       </div>
       <p className="candle-status" role="status">{status}</p>
-      <p className="candle-hint">{visible.length} shown / {candles.length} loaded · UTC · Drag right for older history; more loads at the edge. Pinch or scroll to zoom. Tap a candle for its numbers. Scroll the page outside the chart.</p>
+      <p className="candle-hint">{visible.length} shown / {chartCandles.length} session candles loaded · UTC · Drag right for older history; more loads at the edge. Pinch or scroll to zoom. Tap a candle for its numbers. Scroll the page outside the chart.</p>
+      {hiddenClosed > 0 && <p className="candle-hint">{hiddenClosed} saved candle{hiddenClosed === 1 ? "" : "s"} from scheduled closed hours hidden from this intraday chart and its technical analysis. Saved history remains in Atlas.</p>}
       {visible.length > 0 && quiet && <p className="candle-hint">The visible prices cover a narrow range. Auto-fit enlarges that range; it does not change saved prices.</p>}
       <p className="candle-hint">Gold price badge = last visible candle close. Analysis uses completed candles; the newest candle may still be forming. Older history depends on saved data and your provider’s coverage.</p>
       {bands.length > 0 && <div className="candle-levels">{bands.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label}: {zone.low.toFixed(2)}–{zone.high.toFixed(2)}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}{zone.high < min || zone.low > max ? " (outside view)" : ""}</span>)}</div>}
