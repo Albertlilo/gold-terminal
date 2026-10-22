@@ -1,9 +1,10 @@
 import { getGoldSession } from "../lib/goldSession";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { candleWindow, mergeCandles, candlePriceBounds, sessionCandles } from "../lib/candles";
 import { requestHistory } from "../lib/historyRequest";
 import { accountFetch } from '../lib/accountClient';
 import { clampCount, panWindow, olderPage } from "../lib/chartNavigation";
+import { historicalSupports } from "../lib/historicalSupport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://gold-terminal-ufv4.onrender.com";
 const EMPTY_LEVELS = [];
@@ -42,6 +43,7 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EM
 function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, onAuditChange }) {
   const [magnify, setMagnify] = useState(true);
   const [fitLevels, setFitLevels] = useState(false);
+  const [showPastSupport, setShowPastSupport] = useState(true);
   const [candles, setCandles] = useState([]);
   const [status, setStatus] = useState("Loading saved candles…");
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -172,9 +174,11 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     }
   }
 
-  const chartCandles = sessionCandles(candles, interval);
+  const chartCandles = useMemo(() => sessionCandles(candles, interval), [candles, interval]);
   const hiddenClosed = candles.length - chartCandles.length;
   const visible = candleWindow(chartCandles, count, endTime);
+  // The final saved candle may still be forming; historical markers use older rows.
+  const pastSupports = useMemo(() => historicalSupports(chartCandles.slice(0, -1)), [chartCandles]);
   const selected = visible[hover?.index] || visible.at(-1);
   const levels = watchLevels.filter(level => Number.isFinite(level.price) && level.price > 0);
   const bands = zones.filter(zone => Number.isFinite(zone.low) && Number.isFinite(zone.high));
@@ -187,6 +191,9 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const low = lows.length ? Math.min(...lows) : 0;
   const high = highs.length ? Math.max(...highs) : 1;
   const { min, max, quiet } = candlePriceBounds(low, high, magnify);
+  const visiblePastSupports = showPastSupport && visible.length ? pastSupports.filter(zone => zone.lastTime >= visible[0].time && zone.firstTime <= visible.at(-1).time
+    && zone.high >= min && zone.low <= max && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
+    .sort((a, b) => b.touches - a.touches || b.lastTime - a.lastTime).slice(0, 4) : [];
   const axisWidth = Math.max(90, Math.max(min.toFixed(2).length, max.toFixed(2).length) * 7.5 + 24);
   const plotWidth = Math.max(60, width - axisWidth - 16);
   const height = expanded ? Math.max(440, Math.round(viewportHeight * 0.68)) : width < 560 ? 380 : 440;
@@ -260,6 +267,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
       <div className="candle-scale-controls">
         <label><input type="checkbox" checked={magnify} onChange={event => setMagnify(event.target.checked)} />Auto-fit visible prices</label>
         {(levels.length > 0 || bands.length > 0) && <label><input type="checkbox" checked={fitLevels} onChange={event => setFitLevels(event.target.checked)} />Include watch levels &amp; zones</label>}
+        <label><input type="checkbox" checked={showPastSupport} onChange={event => setShowPastSupport(event.target.checked)} />Show past support reactions</label>
       </div>
       <div className="candle-ohlc" aria-live="off">
         {selected ? <><time>{stamp(selected.time)} UTC</time><span>Open <strong>{selected.open.toFixed(2)}</strong></span><span>High <strong>{selected.high.toFixed(2)}</strong></span><span>Low <strong>{selected.low.toFixed(2)}</strong></span><span>Close <strong>{selected.close.toFixed(2)}</strong></span></> : "Waiting for historical prices…"}
@@ -285,6 +293,16 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
             <rect x="8" y={y(Math.min(max, zone.high))} width={plotWidth} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={zone.color} fillOpacity={zone.active === false ? "0.035" : "0.12"} stroke={zone.color} strokeOpacity={zone.active === false ? "0.3" : "0.55"} strokeDasharray={zone.active === false ? "4 5" : undefined} />
             <text x="12" y={Math.min(bottom - 5, y(Math.min(max, zone.high)) + 13)} fill={zone.color} stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize={width < 420 ? "10" : "12"}>{zone.label}</text>
           </g>)}
+          {visiblePastSupports.map(zone => {
+            const first = Math.max(0, visible.findIndex(row => row.time >= zone.firstTime));
+            const last = visible.findLastIndex(row => row.time <= zone.lastTime);
+            const start = Math.max(8, x(first) - step / 2);
+            const end = Math.min(plotWidth + 8, x(Math.min(visible.length - 1, last + 4)) + step / 2);
+            return <g key={zone.id}>
+              <rect x={start} y={y(Math.min(max, zone.high))} width={Math.max(1, end - start)} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill="#70d69c" fillOpacity="0.07" stroke="#70d69c" strokeOpacity="0.5" strokeDasharray="3 4" />
+              <text x={start + 3} y={Math.min(bottom - 5, y(Math.min(max, zone.high)) + 13)} fill="#8faf95" stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize="11">Past support · {zone.touches} reactions</text>
+            </g>;
+          })}
           {visible.map((candle, index) => {
             const color = candle.close >= candle.open ? "#70d69c" : "#ef7b7b";
             const body = Math.max(0.7, step * 0.7);
@@ -310,6 +328,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
       </div>
       <p className="candle-status" role="status">{status}</p>
       <p className="candle-hint">{visible.length} shown / {chartCandles.length} session candles loaded · UTC · Drag right for older history; more loads at the edge. Pinch or scroll to zoom. Tap a candle for its numbers. Scroll the page outside the chart.</p>
+      {showPastSupport && <p className="candle-hint">Past support markers cover earlier candle reactions only. They are chart references, not current support or signal triggers.</p>}
       {hiddenClosed > 0 && <p className="candle-hint">{hiddenClosed} saved candle{hiddenClosed === 1 ? "" : "s"} from scheduled closed hours hidden from this intraday chart and its technical analysis. Saved history remains in Atlas.</p>}
       {visible.length > 0 && quiet && <p className="candle-hint">The visible prices cover a narrow range. Auto-fit enlarges that range; it does not change saved prices.</p>}
       <p className="candle-hint">Gold price badge = last visible candle close. Analysis uses completed candles; the newest candle may still be forming. Older history depends on saved data and your provider’s coverage.</p>
