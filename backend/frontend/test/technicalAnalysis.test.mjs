@@ -92,6 +92,19 @@ test('repeated lows without a completed recovery do not establish support',()=>{
   assert.equal(buildZones(rows),null);
 });
 
+test('a new support qualifies after two separated reactions and a completed bullish return',()=>{
+  const rows=base();
+  rows[3]={...row(3,100,95,101),open:99.8};
+  rows[9]={...row(9,100,95.1,101),open:99.8};
+  rows[19]={...row(19,99,95.4,100),open:97};
+  const zones=buildZones(rows);
+  assert.ok(zones?.support);
+  assert.equal(zones.support.touches,2);
+  assert.equal(zones.support.source,'recent');
+  const broken=[...rows.slice(0,-1),{...row(19,94,93,97),open:96}];
+  assert.equal(buildZones(broken)?.support??null,null);
+});
+
 test('an upper internal reaction is not mislabeled support while the lower floor is unconfirmed',()=>{
   const rows=base();
   rows[19]={...rows[19],low:90};

@@ -6,7 +6,7 @@ export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
 import { historicalSupports } from "./historicalSupport.js";
 
-export const RULE_VERSION = "zones-retest-v15-historical-floor";
+export const RULE_VERSION = "zones-retest-v16-two-touch-floor";
 export const NOISE_PERCENT = 0.05;
 const SWING_RADIUS = 2;
 // Reactions must be separated by several completed candles. This prevents a
@@ -56,7 +56,7 @@ export function buildZones(previous) {
     cluster.points.push(point);
     cluster.center = cluster.values.reduce((sum, value) => sum + value, 0) / cluster.values.length;
   }
-  const confirmed = clusters.map(cluster => {
+  const assessed = clusters.map(cluster => {
     const separated = [];
     for (const point of cluster.points.sort((a, b) => a.index - b.index)) {
       const recovery = rows.slice(point.index + 1, point.index + SWING_RADIUS + 1);
@@ -65,8 +65,10 @@ export function buildZones(previous) {
         ? row.close >= point.price + departure : row.close <= point.price - departure);
       if (reacted && (!separated.length || point.index - separated.at(-1).index >= MIN_TOUCH_SEPARATION)) separated.push(point);
     }
-    return { ...cluster, touches: separated.length, lastTouch: separated.at(-1)?.time ?? null };
-  }).filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES);
+    return { ...cluster, touches: separated.length, lastTouch: separated.at(-1)?.time ?? null,
+      lastTouchIndex: separated.at(-1)?.index ?? null };
+  });
+  const confirmed = assessed.filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES);
   const minimumGap = Math.max(averageRange * 0.2, reference * NOISE_PERCENT / 100);
   const recentLow = Math.min(...recent.map(row => row.low));
   const recentHigh = Math.max(...recent.map(row => row.high));
@@ -74,9 +76,17 @@ export function buildZones(previous) {
   // Demand is the lower boundary of the observed range. An internal swing
   // near resistance is not promoted to support while the floor is unconfirmed.
   const lowerBand = recentLow + (recentHigh - recentLow) * 0.35;
-  const supportCandidate = confirmed.filter(cluster => cluster.role === "support"
+  const supportCandidate = assessed.filter(cluster => cluster.role === "support"
+      && cluster.touches >= 2
       && cluster.center < reference - minimumGap && cluster.center >= recentLow - activeMargin
-      && cluster.center <= lowerBand)
+      && cluster.center <= lowerBand
+      // A new floor may qualify after two separated swing reactions when a
+      // completed bullish candle returns from it. A later close through the
+      // floor cancels it, so an untested dip cannot become active support.
+      && recent.slice(-3).some(row => row.low <= cluster.center + minimumGap
+        && row.close > cluster.center + minimumGap && row.close > row.open)
+      && !rows.some((row, index) => index > cluster.lastTouchIndex
+        && row.close < cluster.center - minimumGap))
     .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];
   // If the recent candles have not formed a floor, check older, independently
   // tested lows near the current range. Broken or distant history stays inactive.
