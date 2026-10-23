@@ -1,5 +1,5 @@
 const { createHash } = require("node:crypto");
-const RULE_VERSION = "zones-retest-v16-two-touch-floor";
+const RULE_VERSION = "zones-retest-v17-forming-support-reference";
 
 function createSignalAuditService({ analyse, plan, store, now = Date.now, session }) {
   const cache = new Map();

@@ -6,7 +6,7 @@ export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
 import { historicalSupports } from "./historicalSupport.js";
 
-export const RULE_VERSION = "zones-retest-v16-two-touch-floor";
+export const RULE_VERSION = "zones-retest-v17-forming-support-reference";
 export const NOISE_PERCENT = 0.05;
 const SWING_RADIUS = 2;
 // Reactions must be separated by several completed candles. This prevents a
@@ -97,10 +97,21 @@ export function buildZones(previous) {
         && row.close > zone.high && row.close > row.open))
       && !previous.some(row => row.time > zone.lastTime && row.close < zone.low - minimumGap))
     .sort((a, b) => Math.abs(a.low - recentLow) - Math.abs(b.low - recentLow) || b.touches - a.touches)[0];
+  const formingSupportCandidate = !supportCandidate && !historicalFloor
+    ? assessed.filter(cluster => cluster.role === "support" && cluster.touches >= 1
+      && cluster.lastTouchIndex >= rows.length - ZONE_LOOKBACK
+      && cluster.center < reference - minimumGap && cluster.center >= recentLow - activeMargin
+      && cluster.center <= lowerBand
+      && recent.slice(-3).some(row => row.low <= cluster.center + minimumGap
+        && row.close > cluster.center + minimumGap && row.close > row.open)
+      && !rows.some((row, index) => index > cluster.lastTouchIndex
+        && row.close < cluster.center - minimumGap))
+      .sort((a, b) => a.center - b.center || b.touches - a.touches)[0]
+    : null;
   const resistanceCandidate = confirmed.filter(cluster => cluster.role === "resistance"
       && cluster.center > reference + minimumGap && cluster.center <= recentHigh + activeMargin)
     .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];
-  if (!supportCandidate && !historicalFloor && !resistanceCandidate) return null;
+  if (!supportCandidate && !historicalFloor && !formingSupportCandidate && !resistanceCandidate) return null;
   const baseWidth = Math.max(averageRange * 0.2, reference * 0.00025);
   const supportPrice = supportCandidate?.center ?? historicalFloor?.low;
   const gap = supportPrice && resistanceCandidate ? resistanceCandidate.center - supportPrice : null;
@@ -112,9 +123,13 @@ export function buildZones(previous) {
     color: "#70d69c", active: true, touches: supportCandidate?.touches ?? historicalFloor.touches,
     lastTouch: supportCandidate?.lastTouch ?? historicalFloor.lastTime,
     source: supportCandidate ? "recent" : "older_history" } : null;
+  const formingSupport = !support && formingSupportCandidate ? { label: "Potential support · forming",
+    low: formingSupportCandidate.center, high: formingSupportCandidate.center + width,
+    color: "#70d69c", active: false, touches: formingSupportCandidate.touches,
+    lastTouch: formingSupportCandidate.lastTouch, source: "forming" } : null;
   const resistance = resistanceCandidate ? { label: "Resistance zone", low: resistanceCandidate.center - width, high: resistanceCandidate.center,
     color: "#ef7b7b", active: true, touches: resistanceCandidate.touches, lastTouch: resistanceCandidate.lastTouch } : null;
-  return { support, resistance, buy: resistance ? resistance.high + breakBuffer : null,
+  return { support, formingSupport, resistance, buy: resistance ? resistance.high + breakBuffer : null,
     sell: support ? support.low - breakBuffer : null,
     breakBuffer, averageRange };
 }
@@ -261,7 +276,9 @@ export function confirmZones(completed) {
         // Smaller internal swings are not evidence that its boundaries failed.
         const insideEstablishedRange = zones.support && zones.resistance
           && candle.close >= zones.support.low && candle.close <= zones.resistance.high;
-        if (!insideEstablishedRange && nextZones && (!sameZone(zones.support, nextZones.support) || !sameZone(zones.resistance, nextZones.resistance))) {
+        if (!insideEstablishedRange && nextZones && (!sameZone(zones.support, nextZones.support)
+          || !sameZone(zones.resistance, nextZones.resistance)
+          || !sameZone(zones.formingSupport, nextZones.formingSupport))) {
           previousZones = archiveChangedZones(previousZones, zones, nextZones, candle.time);
           zones = nextZones;
           state = structureState(zones);

@@ -105,6 +105,22 @@ test('a new support qualifies after two separated reactions and a completed bull
   assert.equal(buildZones(broken)?.support??null,null);
 });
 
+test('one fresh bullish floor reaction is drawn as forming support but cannot activate a setup',()=>{
+  const rows=base();
+  rows[17]={...row(17,100,95,101),open:99.8};
+  rows[19]={...row(19,99,95.1,100),open:97};
+  const zones=buildZones(rows);
+  assert.equal(zones.support,null);
+  assert.equal(zones.formingSupport.label,'Potential support · forming');
+  assert.equal(zones.formingSupport.active,false);
+  const analysis=analyse([...rows,row(20,99,96,100)]);
+  assert.equal(analysis.support,null);
+  assert.ok(analysis.zones.some(zone=>zone.label==='Potential support · forming'));
+  assert.equal(analysis.setup,null);
+  const broken=[...rows.slice(0,-1),{...row(19,94,93,97),open:96}];
+  assert.equal(buildZones(broken)?.formingSupport??null,null);
+});
+
 test('an upper internal reaction is not mislabeled support while the lower floor is unconfirmed',()=>{
   const rows=base();
   rows[19]={...rows[19],low:90};
