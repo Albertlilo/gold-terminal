@@ -48,7 +48,7 @@ router.get("/gold/history", async (req, res) => {
     const interval = req.query.interval ?? "5min";
     const before = req.query.before === undefined ? undefined : Number(req.query.before);
     const history = await getHistory(interval, before);
-    if (before === undefined) {
+    if (before === undefined && req.query.structureOnly !== "1") {
       try { history.signalAudit = await boundedAudit(interval, history.candles); }
       catch { history.signalAudit = { status: "unavailable", warning: "Signal audit unavailable; saved candles remain available." }; }
     }

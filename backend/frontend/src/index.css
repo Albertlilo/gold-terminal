@@ -3184,6 +3184,19 @@ body {
   cursor: pointer;
 }
 .structure-load[aria-pressed="true"] { opacity: 0.75; cursor: default; }
+.chart-error-state {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid rgba(239, 123, 123, 0.42);
+  border-radius: 12px;
+  background: rgba(28, 15, 18, 0.72);
+  color: #e8c9cc;
+}
+.chart-error-state span { color: #aab6bf; }
+.chart-error-state button { min-height: 40px; padding: 8px 12px; }
 .structure-selected { border-color: rgba(243, 202, 98, 0.5); box-shadow: inset 0 0 18px rgba(243, 202, 98, 0.045); }
 .structure-selected strong { color: var(--gold-bright); }
 
@@ -3211,4 +3224,5 @@ body {
   .risk-metrics { grid-template-columns: 1fr; }
   .structure-timeframe,
   .risk-metrics > div { padding: 12px; }
+  .chart-error-state { padding: 14px; }
 }

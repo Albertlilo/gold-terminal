@@ -12,7 +12,7 @@ const stamp = time => new Date(time * 1000).toLocaleString("en-GB", {
   timeZone: "UTC", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
 });
 
-export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange, onAuditChange }) {
+export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange, onAuditChange, initialCandles = EMPTY_LEVELS, initialLoadPending = false, onHistoryStatus }) {
   const [localInterval, setIntervalValue] = useState("5min");
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
@@ -35,17 +35,17 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EM
           </select>
         </label>
       </div>
-      <CandleView key={interval} interval={interval} expanded={expanded} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} onAuditChange={onAuditChange} />
+      <CandleView key={interval} interval={interval} expanded={expanded} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} onAuditChange={onAuditChange} initialCandles={initialCandles} initialLoadPending={initialLoadPending} onHistoryStatus={onHistoryStatus} />
     </section>
   );
 }
 
-function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, onAuditChange }) {
+function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, onAuditChange, initialCandles, initialLoadPending, onHistoryStatus }) {
   const [magnify, setMagnify] = useState(true);
   const [fitLevels, setFitLevels] = useState(false);
   const [showPastSupport, setShowPastSupport] = useState(true);
-  const [candles, setCandles] = useState([]);
-  const [status, setStatus] = useState("Loading saved candles…");
+  const [candles, setCandles] = useState(initialCandles);
+  const [status, setStatus] = useState(initialCandles.length ? "Showing saved candles." : "Loading saved candles…");
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [count, setCount] = useState(() => typeof window !== "undefined" && window.innerWidth < 600 ? 40 : 80);
@@ -60,6 +60,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const automaticPage = useRef(null);
   const olderRequest = useRef(null);
   const retryRef = useRef(null);
+  const skipInitialFetch = useRef(initialCandles.length > 0 || initialLoadPending);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -69,6 +70,20 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   }, []);
 
   useEffect(() => { onCandlesChange?.(interval, candles); }, [interval, candles, onCandlesChange]);
+
+  useEffect(() => {
+    if (!initialCandles.length) return;
+    // The parent owns the independent timeframe cache; reconcile updates without resetting chart navigation.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCandles(previous => {
+      const merged = mergeCandles(previous, initialCandles);
+      if (merged.length === previous.length && merged.every((row, index) => {
+        const old = previous[index];
+        return old && old.time === row.time && old.open === row.open && old.high === row.high && old.low === row.low && old.close === row.close;
+      })) return previous;
+      return merged;
+    });
+  }, [initialCandles]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -85,6 +100,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
       busy = true;
       clearTimeout(retryTimer);
       if (manual) { failures = 0; followups = 0; setHasMore(true); automaticPage.current = null; }
+      onHistoryStatus?.(interval, { status: "loading", error: null });
       setRefreshing(true);
       try {
         const data = await requestHistory(
@@ -93,6 +109,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
         );
         if (active) {
           onAuditChange?.(interval, data.signalAudit ?? null);
+          onHistoryStatus?.(interval, { status: data.candles.length ? "ready" : "empty", updatedAt: Date.now(), error: null });
           loadedClosed = !getGoldSession().isOpen;
           failures = 0;
           setCandles(previous => mergeCandles(previous, data.candles));
@@ -107,6 +124,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
         }
       } catch (error) {
         if (active && error.name !== "AbortError") {
+          onHistoryStatus?.(interval, { status: "error", error: "Could not update this timeframe." });
           failures++;
           const willRetry = getGoldSession().isOpen && failures <= 2;
           setStatus(error.message + (willRetry
@@ -122,20 +140,21 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     retryRef.current = () => refresh(true);
     const onVisible = () => { if (!document.hidden) refresh(); };
     // Schedule initial work after the effect is installed, just like subsequent retries.
-    const initialTimer = window.setTimeout(() => refresh(), 0);
-    const timer = window.setInterval(() => refresh(), 300000);
+    const initialTimer = skipInitialFetch.current ? null : window.setTimeout(() => refresh(), 0);
+    const refreshEvery = interval === "1day" ? 3600000 : 300000;
+    const timer = window.setInterval(() => refresh(), refreshEvery);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       active = false;
       retryRef.current = null;
       controller.abort();
       olderRequest.current?.abort();
-      window.clearTimeout(initialTimer);
+      if (initialTimer !== null) window.clearTimeout(initialTimer);
       window.clearTimeout(retryTimer);
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [interval, onAuditChange]);
+  }, [interval, onAuditChange, onHistoryStatus]);
 
   useEffect(() => {
     const element = chartRef.current;
@@ -176,9 +195,18 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
 
   const chartCandles = useMemo(() => sessionCandles(candles, interval), [candles, interval]);
   const hiddenClosed = candles.length - chartCandles.length;
-  const visible = candleWindow(chartCandles, count, endTime);
+  const visible = useMemo(() => candleWindow(chartCandles, count, endTime), [chartCandles, count, endTime]);
+  const visibleStart = visible[0]?.time;
+  const visibleEnd = visible.at(-1)?.time;
   // The final saved candle may still be forming; historical markers use older rows.
-  const pastSupports = useMemo(() => historicalSupports(chartCandles.slice(0, -1)), [chartCandles]);
+  const pastSupports = useMemo(() => {
+    if (visibleStart === undefined || visibleEnd === undefined) return [];
+    const first = chartCandles.findIndex(row => row.time >= visibleStart);
+    const last = chartCandles.findLastIndex(row => row.time <= visibleEnd);
+    const contextStart = Math.max(0, first - 40);
+    const contextEnd = Math.min(chartCandles.length - 1, last + 3);
+    return historicalSupports(chartCandles.slice(contextStart, contextEnd));
+  }, [chartCandles, visibleStart, visibleEnd]);
   const selected = visible[hover?.index] || visible.at(-1);
   const levels = watchLevels.filter(level => Number.isFinite(level.price) && level.price > 0);
   const bands = zones.filter(zone => Number.isFinite(zone.low) && Number.isFinite(zone.high));
@@ -191,7 +219,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const low = lows.length ? Math.min(...lows) : 0;
   const high = highs.length ? Math.max(...highs) : 1;
   const { min, max, quiet } = candlePriceBounds(low, high, magnify);
-  const visiblePastSupports = showPastSupport && visible.length ? pastSupports.filter(zone => zone.lastTime >= visible[0].time && zone.firstTime <= visible.at(-1).time
+  const visiblePastSupports = showPastSupport && visible.length ? pastSupports.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
     && zone.high >= min && zone.low <= max && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
     .sort((a, b) => b.touches - a.touches || b.lastTime - a.lastTime).slice(0, 4) : [];
   const axisWidth = Math.max(90, Math.max(min.toFixed(2).length, max.toFixed(2).length) * 7.5 + 24);

@@ -311,6 +311,15 @@ test('hourly and daily bars each require their own completed break and retest',(
     assert.equal(a.confirmation,'Buy Watch');
   }
 });
+test('Daily analysis stays bounded to completed candles and excludes a forming bar',()=>{
+  const seconds=86400;
+  const daily=Array.from({length:36},(_,i)=>row(i,100+(i%4),99+(i%4),101+(i%4),seconds));
+  const analysis=analyseCandles(daily,'1day',(daily.at(-1).time+seconds/2)*1000,{...DEFAULT_TECHNICAL_CONFIG,enforceRisk:false});
+  assert.equal(analysis.count,20);
+  assert.equal(analysis.lastTime,daily.at(-2).time);
+  assert.equal(analysis.interval,'1day');
+  assert.notEqual(analysis.state,'Invalid price data');
+});
 test('standard session applies weekend and daylight-saving boundaries',()=>{
   assert.equal(getGoldSession(Date.parse('2026-09-20T21:59:00Z')).isOpen,false);
   assert.equal(getGoldSession(Date.parse('2026-09-20T22:00:00Z')).isOpen,true);

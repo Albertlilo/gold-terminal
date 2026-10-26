@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import GoldCandleChart from "../components/GoldCandleChart";
 import { analyseCandles, getSetupStage, makeTechnicalPlan, TIMEFRAMES } from "../lib/technicalAnalysis";
 import { getGoldSession } from "../lib/goldSession";
@@ -6,33 +6,49 @@ import SignalReview from "../components/SignalReview";
 import { RULE_VERSION } from "../lib/zoneConfirmation";
 import PushNotifications from "../components/PushNotifications";
 import TechnicalRiskPanel from "../components/TechnicalRiskPanel";
+import TechnicalChartBoundary from "../components/TechnicalChartBoundary";
+import useIndependentTimeframeHistory from "../hooks/useIndependentTimeframeHistory";
 
 const money = value => Number.isFinite(value) ? value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const stamp = value => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString() : "Not available";
+const MAX_ANALYSIS_CANDLES = 1200;
+const PRIMARY_ANALYSIS_INTERVAL = "1h";
+
+function safeAnalyseCandles(rows, interval, now) {
+  try {
+    return analyseCandles(Array.isArray(rows) ? rows.slice(-MAX_ANALYSIS_CANDLES) : [], interval, now);
+  } catch (error) {
+    console.error(`Technical analysis failed for ${interval}:`, error);
+    return { count: 0, interval, lastTime: null, ready: false, state: "Analysis unavailable", levels: [], zones: [],
+      previousZones: [], confirmation: "None", move: null, risk: null, setup: null,
+      error: true, marketStructure: { trend: "Unavailable", event: "No structure read", eventAt: null } };
+  }
+}
 
 export default function TechnicalsPage({ dashboardData, currentTime, lastSuccessAt, dashboardError, goldPrice }) {
-  const [interval, setInterval] = useState(() => {
+  const [chartInterval, setChartInterval] = useState(() => {
     const requested = new URLSearchParams(window.location.search).get('interval');
     return Object.hasOwn(TIMEFRAMES, requested) ? requested : '1h';
   });
-  const [history, setHistory] = useState({});
   const [showWatchLevels, setShowWatchLevels] = useState(true);
   const [showZones, setShowZones] = useState(true);
   const [showPreviousZones, setShowPreviousZones] = useState(false);
-  const [audits, setAudits] = useState({});
-  const receiveAudit = useCallback((timeframe, audit) => setAudits(previous => ({ ...previous, [timeframe]: audit })), []);
-  const receiveCandles = useCallback((timeframe, candles) => setHistory(previous => ({ ...previous, [timeframe]: candles })), []);
+  const [chartRetry, setChartRetry] = useState(0);
+  const { history, updates, audits, receiveChartCandles, receiveChartStatus, receiveAudit, refreshTimeframe } = useIndependentTimeframeHistory(chartInterval);
   const now = currentTime.getTime();
   const session = getGoldSession(now);
-  const calculated = useMemo(() => analyseCandles(history[interval], interval, currentTime.getTime()), [history, interval, currentTime]);
+  const calculated = useMemo(() => safeAnalyseCandles(history[PRIMARY_ANALYSIS_INTERVAL], PRIMARY_ANALYSIS_INTERVAL, currentTime.getTime()), [history, currentTime]);
   const structureTimeframes = useMemo(() => Object.entries(TIMEFRAMES).map(([key]) => ({
     key,
-    analysis: key === interval ? calculated : history[key] ? analyseCandles(history[key], key, currentTime.getTime()) : null,
-  })), [history, interval, currentTime, calculated]);
-  const audit = audits[interval];
+    analysis: key === PRIMARY_ANALYSIS_INTERVAL ? calculated : history[key] ? safeAnalyseCandles(history[key], key, currentTime.getTime()) : null,
+  })), [history, currentTime, calculated]);
+  const audit = audits[PRIMARY_ANALYSIS_INTERVAL];
   const versionMismatch = audit?.status === "saved" && audit.ruleVersion !== RULE_VERSION;
   const recorded = audit?.status === "saved" && !versionMismatch ? audit.analysis : null;
-  const analysis = recorded ? { ...recorded, stale: now / 1000 - (recorded.lastTime + TIMEFRAMES[interval].seconds) > Math.max(TIMEFRAMES[interval].seconds * 2, 900) } : calculated;
+  const analysis = recorded ? { ...recorded, stale: now / 1000 - (recorded.lastTime + TIMEFRAMES[PRIMARY_ANALYSIS_INTERVAL].seconds) > Math.max(TIMEFRAMES[PRIMARY_ANALYSIS_INTERVAL].seconds * 2, 900) } : calculated;
+  const chartAnalysis = structureTimeframes.find(({ key }) => key === chartInterval)?.analysis;
+  const chartZones = Array.isArray(chartAnalysis?.zones) ? chartAnalysis.zones : [];
+  const chartPreviousZones = (chartAnalysis?.previousZones || []).slice(-2);
   const activeZones = Array.isArray(analysis.zones) ? analysis.zones : [];
   const previousZones = ["support", "resistance"].map(role => {
     const retired = (analysis.previousZones || []).filter(zone => zone.role === role);
@@ -60,17 +76,17 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <div><span className="gold-bar-icon" aria-hidden="true">▰</span><div><strong><span>Trendline</span> Insight</strong><small>DATA · INSIGHTS · DISCIPLINE</small></div></div>
         <div className="terminal-symbol"><span>XAUUSD</span><time dateTime={currentTime.toISOString()}>{currentTime.toLocaleString()}</time></div>
       </header>
-      <div className="terminal-intro"><h1>Technical Analysis</h1><p>Daily trend · 1H setup · 5M timing. Macro stays separate.</p><p className="analysis-method">Only the selected timeframe refreshes. Other readings use loaded candles.</p></div>
+      <div className="terminal-intro"><h1>Technical Analysis</h1><p>Daily trend · 1H setup · 5M timing. Macro stays separate.</p><p className="analysis-method">All timeframes update independently. Selecting one only changes the visible chart.</p></div>
       <div className="terminal-live-price"><div><span>XAUUSD · {session.isOpen ? "Latest price" : "Last available price"}</span><strong>{goldPrice ?? "—"}<small>USD / oz</small></strong></div><p>{!session.isOpen ? "Market closed · price held" : dashboardError || !Number.isFinite(dashboardData?.market?.xauusd?.price) || dashboardData?.market?.xauusd?.stale ? "Waiting for a fresh quote" : "Live price · checked every 30 seconds"}</p></div>
       <div className={`session-notice ${session.isOpen ? "" : "session-closed"}`} role="status">
         <span className="session-dot" /> <strong>{session.label}</strong>
         <span>{session.isOpen ? "Scheduled hours · New York time" : "Price readings paused · last available prices shown"}</span>
       </div>
       {dashboardData?.market?.xauusd?.priceSource === "saved_candle" && <p className="analysis-method">Saved candle reference · not a live quote or an official session close. Candle ended {new Date(dashboardData.market.xauusd.receivedAt).toLocaleString()}. Provider data can include out-of-session timestamps.</p>}
-      <div className="data-receipts" aria-label="Data timestamps"><span>Quote received: <strong>{stamp(dashboardData?.market?.xauusd?.receivedAt)}</strong></span><span>Dashboard last received: <strong>{stamp(lastSuccessAt)}</strong></span><span>Analysed candle closed: <strong>{analysis.lastTime ? stamp((analysis.lastTime + TIMEFRAMES[interval].seconds) * 1000) : "Not available"}</strong></span></div>
+      <div className="data-receipts" aria-label="Data timestamps"><span>Quote received: <strong>{stamp(dashboardData?.market?.xauusd?.receivedAt)}</strong></span><span>Dashboard last received: <strong>{stamp(lastSuccessAt)}</strong></span><span>1H candle analysed: <strong>{analysis.lastTime ? stamp((analysis.lastTime + TIMEFRAMES[PRIMARY_ANALYSIS_INTERVAL].seconds) * 1000) : "Not available"}</strong></span></div>
       {dashboardData?.market?.xauusd?.fallback && <p className="coverage-status">Quote fallback active · showing the last available price, not a fresh live quote.</p>}
       <section className="terminal-summary technical-only-summary" aria-label="Signal summary">
-        <article className="terminal-card summary-card tone-neutral"><span className="terminal-eyebrow">↗ &nbsp; Technical State</span><h2>{analysis.state}</h2><p>{TIMEFRAMES[interval].label} · completed candles</p><p>{analysis.state === "Between zones" ? "No confirmation yet" : analysis.stale ? "Delayed candle data" : "Volatility-adjusted break clearance"}</p></article>
+        <article className="terminal-card summary-card tone-neutral"><span className="terminal-eyebrow">↗ &nbsp; Technical State</span><h2>{analysis.state}</h2><p>1 hour · primary setup · completed candles</p><p>{analysis.state === "Between zones" ? "No confirmation yet" : analysis.stale ? "Delayed candle data" : "Volatility-adjusted break clearance"}</p></article>
         <article className={`terminal-card summary-card tone-${setupStage.tone}`}><span className="terminal-eyebrow">◉ &nbsp; Setup Stage</span><h2>{setupStage.label}</h2><p>{setupStage.detail}</p>{(analysis.stale || !session.isOpen || versionMismatch) && <p>Historical or unavailable for a fresh signal right now.</p>}</article>
         <article className={`terminal-card summary-card tone-${["Sell Watch", "Resistance Rejection"].includes(plan.signal) ? "down" : ["Buy Watch", "Support Bounce"].includes(plan.signal) ? "up" : "neutral"}`}><span className="terminal-eyebrow">◎ &nbsp; Technical Signal</span><h2 className="technical-signal">{plan.signal.toUpperCase()}</h2><p>{conciseReason}</p></article>
       </section>
@@ -81,13 +97,18 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
       <section className="terminal-card market-structure-panel">
         <div className="terminal-panel-title"><h2>Market Structure</h2><span>INDEPENDENT TIMEFRAMES</span></div>
         <div className="structure-timeframe-grid">
-          {structureTimeframes.map(({ key, analysis: context }) => <article key={key} className={key === interval ? "structure-timeframe structure-selected" : "structure-timeframe"}>
+          {structureTimeframes.map(({ key, analysis: context }) => <article key={key} className={key === PRIMARY_ANALYSIS_INTERVAL ? "structure-timeframe structure-selected" : "structure-timeframe"}>
             <span>{key === "1day" ? "Daily · Overall trend" : key === "1h" ? "1H · Primary setup" : "5M · Entry timing"}</span>
-            <strong>{context?.marketStructure?.trend ?? "Not loaded"}</strong>
-            <small>{context?.marketStructure?.event ?? "Select this timeframe to load its candles."}</small>
+            <strong>{context?.marketStructure?.trend ?? (updates[key]?.status === "error" ? "Unavailable" : updates[key]?.status === "loading" ? "Loading…" : updates[key]?.status === "empty" ? "No candles" : "Not loaded")}</strong>
+            <small>{context?.marketStructure?.event ?? (updates[key]?.status === "error" ? updates[key].error : updates[key]?.status === "loading" ? "Updating candles." : updates[key]?.status === "empty" ? "No saved candles are available for this timeframe." : "Waiting for candles.")}</small>
             {context?.marketStructure?.eventAt && <small>Break confirmed: {stamp(context.marketStructure.eventAt * 1000)}</small>}
-            <button type="button" className="structure-load" aria-pressed={key === interval} onClick={() => setInterval(key)}>
-              {key === interval ? "Selected timeframe" : context ? "View this timeframe" : "Load timeframe data"}
+            {updates[key]?.updatedAt && <small>Updated: {stamp(updates[key].updatedAt)}</small>}
+            {updates[key]?.status === "error" && context && <small>Update failed; showing last good read.</small>}
+            <button type="button" className="structure-load" aria-pressed={key === chartInterval} onClick={() => {
+              if (!history[key] || updates[key]?.status === "error") void refreshTimeframe(key, { force: true });
+              setChartInterval(key);
+            }}>
+              {key === chartInterval ? "Chart shown" : context ? "View timeframe" : updates[key]?.status === "loading" ? "Loading…" : "Retry timeframe"}
             </button>
           </article>)}
         </div>
@@ -95,17 +116,19 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
       <div className="terminal-chart-wrap">
         <label className="watch-toggle"><input type="checkbox" checked={showWatchLevels} onChange={event => setShowWatchLevels(event.target.checked)} />Show Buy / Sell Watch triggers</label>
         <label className="watch-toggle"><input type="checkbox" checked={showZones} onChange={event => setShowZones(event.target.checked)} />Show support / resistance zones</label>
-        {previousZones.length > 0 && <label className="watch-toggle"><input type="checkbox" checked={showPreviousZones} onChange={event => setShowPreviousZones(event.target.checked)} />Show previous zones (inactive)</label>}
-        <GoldCandleChart zones={showZones ? [...activeZones, ...(showPreviousZones ? previousZones.map(zone => ({ ...zone, label: `${zone.label} · inactive` })) : [])] : []} interval={interval} onIntervalChange={setInterval} onCandlesChange={receiveCandles} onAuditChange={receiveAudit} watchLevels={showWatchLevels ? analysis.levels : []} />
+        {chartPreviousZones.length > 0 && <label className="watch-toggle"><input type="checkbox" checked={showPreviousZones} onChange={event => setShowPreviousZones(event.target.checked)} />Show previous zones (inactive)</label>}
+        <TechnicalChartBoundary key={`${chartInterval}-${chartRetry}`} onRetry={() => setChartRetry(value => value + 1)}>
+          <GoldCandleChart zones={showZones ? [...chartZones, ...(showPreviousZones ? chartPreviousZones.map(zone => ({ ...zone, label: `${zone.label} · inactive` })) : [])] : []} interval={chartInterval} initialCandles={history[chartInterval] || []} initialLoadPending={updates[chartInterval]?.status === "loading"} onIntervalChange={setChartInterval} onCandlesChange={receiveChartCandles} onHistoryStatus={receiveChartStatus} onAuditChange={receiveAudit} watchLevels={showWatchLevels ? chartAnalysis?.levels || [] : []} />
+        </TechnicalChartBoundary>
       </div>
       <TechnicalRiskPanel risk={analysis.risk} />
       <section className="terminal-card timeframe-panel">
         <div className="terminal-panel-title"><h2>Timeframe Analysis</h2><span>COMPLETED CANDLES ONLY</span></div>
-        <div className="timeframe-tabs" aria-label="Analysis timeframe">{Object.entries(TIMEFRAMES).map(([key, value]) => <button key={key} aria-pressed={interval === key} onClick={() => setInterval(key)}>{value.label}</button>)}</div>
+        <div className="timeframe-tabs" aria-label="Visible chart timeframe">{Object.entries(TIMEFRAMES).map(([key, value]) => <button key={key} aria-pressed={chartInterval === key} onClick={() => setChartInterval(key)}>{value.label}</button>)}</div>
         <p className="technical-confirmation"><strong>Technical confirmation:</strong> {analysis.stale ? "Delayed data — historical confirmation only" : analysis.confirmation === "None" ? "Not confirmed" : analysis.confirmation} · independent of macro bias</p>
         <p className="technical-confirmation"><strong>{plan.signal === "Wait" ? "Why WAIT?" : "Why this watch?"}</strong> {plan.reason}</p>
-        <p className="analysis-method">{TIMEFRAMES[interval].label}. Setups expire after 10 completed bars per stage; a closing candle can invalidate sooner.</p>
-        {analysis.setup && <div className="technical-confirmation"><strong>{analysis.state}</strong> · {analysis.setup.barsRemaining} completed-bar step(s) until this phase expires.<br />{analysis.setup.type === "support-bounce" ? "Support approach candle opened" : analysis.setup.type === "resistance-rejection" ? "Resistance approach candle opened" : "Break candle opened"}: {stamp((analysis.setup.startTime ?? analysis.setup.breakTime) * 1000)}<br />{analysis.setup.type === "support-bounce" ? "Support touch" : analysis.setup.type === "resistance-rejection" ? "Resistance touch" : "First retest touch"}: {analysis.setup.touchedAt ? stamp((analysis.setup.touchedAt + TIMEFRAMES[interval].seconds) * 1000) : "Still waiting"}<br />Confirmation: {analysis.setup.confirmedAt ? stamp((analysis.setup.confirmedAt + TIMEFRAMES[interval].seconds) * 1000) : "Not confirmed"}<br /><small>Local times. The countdown is not a guaranteed entry window; invalidation can happen on the next completed candle.</small></div>}
+        <p className="analysis-method">1H primary setup. Setups expire after 10 completed bars per stage; a closing candle can invalidate sooner.</p>
+        {analysis.setup && <div className="technical-confirmation"><strong>{analysis.state}</strong> · {analysis.setup.barsRemaining} completed-bar step(s) until this phase expires.<br />{analysis.setup.type === "support-bounce" ? "Support approach candle opened" : analysis.setup.type === "resistance-rejection" ? "Resistance approach candle opened" : "Break candle opened"}: {stamp((analysis.setup.startTime ?? analysis.setup.breakTime) * 1000)}<br />{analysis.setup.type === "support-bounce" ? "Support touch" : analysis.setup.type === "resistance-rejection" ? "Resistance touch" : "First retest touch"}: {analysis.setup.touchedAt ? stamp((analysis.setup.touchedAt + TIMEFRAMES[PRIMARY_ANALYSIS_INTERVAL].seconds) * 1000) : "Still waiting"}<br />Confirmation: {analysis.setup.confirmedAt ? stamp((analysis.setup.confirmedAt + TIMEFRAMES[PRIMARY_ANALYSIS_INTERVAL].seconds) * 1000) : "Not confirmed"}<br /><small>Local times. The countdown is not a guaranteed entry window; invalidation can happen on the next completed candle.</small></div>}
         {analysis.ready && !recorded && <p className="analysis-method">Provisional calculation · no verified saved decision is available for this response.</p>}
         <div className="zone-readout">{activeZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.displayLabel || zone.label}: {money(zone.low)}–{money(zone.high)} · {zone.status || "active"}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}</span>)}{showPreviousZones && previousZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label} · {zone.status || "previous"}: {money(zone.low)}–{money(zone.high)}</span>)}</div>
         <details className="zone-history-details"><summary>Zone identification and status times</summary>
@@ -125,7 +148,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <details className="analysis-method-details"><summary>Setup definitions</summary><p className="analysis-method">Support Bounce: support touch + bullish close. Resistance Rejection: resistance touch + bearish close. Buy Watch: resistance break + successful retest. Sell Watch: support break + failed retest. Macro stays separate; signals do not place trades.</p></details>
       </section>
       <PushNotifications now={now} />
-      <SignalReview key={interval} audit={audit} rows={history[interval]} interval={interval} now={now} />
+      <SignalReview key={PRIMARY_ANALYSIS_INTERVAL} audit={audit} rows={history[PRIMARY_ANALYSIS_INTERVAL]} interval={PRIMARY_ANALYSIS_INTERVAL} now={now} />
       <section className="terminal-card upcoming-coverage" aria-labelledby="upcoming-coverage-title">
         <div className="terminal-panel-title"><h2 id="upcoming-coverage-title">News &amp; Market Context</h2><span>COMING NEXT</span></div>
         <p className="coverage-status"><strong>News risk: not assessed</strong> · Live coverage is not connected yet.</p>
