@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyseCandles, getSetupStage, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
 import { getGoldSession } from '../src/lib/goldSession.js';
-import { buildZones, DEFAULT_TECHNICAL_CONFIG } from '../src/lib/zoneConfirmation.js';
+import { archiveChangedZones, buildZones, DEFAULT_TECHNICAL_CONFIG } from '../src/lib/zoneConfirmation.js';
 const testSessionStart = Date.parse('2026-10-19T22:00:00Z') / 1000;
 const row = (i, close=100, low=99, high=101, seconds=300) => ({time:testSessionStart+(i+1)*seconds,open:close,close,low,high});
 const base = (seconds=300) => Array.from({length:20},(_,i)=>row(i,100,99,101,seconds));
@@ -319,6 +319,13 @@ test('Daily analysis stays bounded to completed candles and excludes a forming b
   assert.equal(analysis.lastTime,daily.at(-2).time);
   assert.equal(analysis.interval,'1day');
   assert.notEqual(analysis.state,'Invalid price data');
+});
+test('a malformed retired zone cannot crash timeframe analysis while making its ID',()=>{
+  const result=archiveChangedZones([],{
+    support:{role:'support',low:undefined,high:101},
+    resistance:null,
+  },{support:null,resistance:null,breakBuffer:1},testSessionStart,{close:99});
+  assert.deepEqual(result,[]);
 });
 test('standard session applies weekend and daylight-saving boundaries',()=>{
   assert.equal(getGoldSession(Date.parse('2026-09-20T21:59:00Z')).isOpen,false);

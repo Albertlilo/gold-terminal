@@ -160,6 +160,7 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG) {
 function sameZone(first, second) {
   if (!first && !second) return true;
   if (!first || !second) return false;
+  if (![first.low, first.high, second.low, second.high].every(Number.isFinite)) return false;
   const width = Math.max(first.high - first.low, second.high - second.low);
   const firstMiddle = (first.low + first.high) / 2;
   const secondMiddle = (second.low + second.high) / 2;
@@ -173,12 +174,15 @@ function structureState(zones) {
   return "Collecting confirmed structure";
 }
 
-function archiveChangedZones(history, current, next, time, candle) {
+export function archiveChangedZones(history, current, next, time, candle) {
   const archived = [...history];
   for (const role of ["support", "resistance"]) {
     if (sameZone(current?.[role], next?.[role])) continue;
     const zone = current?.[role];
     if (!zone) continue;
+      // A malformed historical zone should be discarded, not allowed to abort
+      // the whole timeframe analysis while formatting its identifier below.
+      if (![zone.low, zone.high].every(Number.isFinite) || zone.low <= 0 || zone.high < zone.low) continue;
     const duplicate = archived.some(item => item.role === role && sameZone(item, zone));
     if (!duplicate) {
       const broke = role === "support" ? candle.close < zone.low : candle.close > zone.high;
