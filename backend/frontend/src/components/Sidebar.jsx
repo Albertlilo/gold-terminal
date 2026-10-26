@@ -1,4 +1,9 @@
 function Sidebar({ activePage, setActivePage }) {
+  const pages = [
+    ["home", "Home"], ["goldScore", "Gold Score"], ["technicals", "Technicals"],
+    ["indicators", "Indicators"], ["macro", "Macro"], ["markets", "Markets"],
+  ];
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -6,48 +11,19 @@ function Sidebar({ activePage, setActivePage }) {
         <span>Free Educational Dashboard</span>
       </div>
 
-      <nav>
-        <p
-          className={activePage === "home" ? "active-nav" : ""}
-          onClick={() => setActivePage("home")}
-        >
-          Home
-        </p>
-
-        <p
-          className={activePage === "goldScore" ? "active-nav" : ""}
-          onClick={() => setActivePage("goldScore")}
-        >
-          Gold Score
-        </p>
-
-        <p
-          className={activePage === "technicals" ? "active-nav" : ""}
-          onClick={() => setActivePage("technicals")}
-        >
-          Technicals
-        </p>
-
-        <p
-          className={activePage === "indicators" ? "active-nav" : ""}
-          onClick={() => setActivePage("indicators")}
-        >
-          Indicators
-        </p>
-
-        <p
-          className={activePage === "macro" ? "active-nav" : ""}
-          onClick={() => setActivePage("macro")}
-        >
-          Macro
-        </p>
-
-        <p
-          className={activePage === "markets" ? "active-nav" : ""}
-          onClick={() => setActivePage("markets")}
-        >
-          Markets
-        </p>
+      <nav aria-label="Main navigation">
+        {pages.map(([page, label]) => (
+          <button
+            key={page}
+            type="button"
+            className={activePage === page ? "active-nav" : ""}
+            aria-current={activePage === page ? "page" : undefined}
+            onClick={() => setActivePage(page)}
+          >
+            <span>{label}</span>
+            {activePage === page && <span className="nav-indicator" aria-hidden="true" />}
+          </button>
+        ))}
       </nav>
       <div className="sidebar-footer">
         <span>Built by Albert</span>

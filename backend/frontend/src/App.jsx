@@ -214,6 +214,7 @@ function App() {
           now={currentTime.getTime()}
           onRetry={() => retryDashboard.current()}
         />
+        <div className="page-stage" key={activePage}>
         {activePage === "home" && (
           <HomePage
             dashboardData={dashboardData}
@@ -286,6 +287,7 @@ function App() {
         {activePage === "indicators" && (
           <IndicatorsPage currentTime={currentTime} />
         )}
+        </div>
       </main>
     </div>
   );
