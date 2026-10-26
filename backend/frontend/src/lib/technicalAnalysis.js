@@ -1,10 +1,10 @@
-import { confirmZones } from "./zoneConfirmation.js";
+import { confirmZones, DEFAULT_TECHNICAL_CONFIG } from "./zoneConfirmation.js";
 import { mergeCandles, sessionCandles } from "./candles.js";
 
 export const TIMEFRAMES = { "5min": { label: "5 minutes", seconds: 300 }, "1h": { label: "1 hour", seconds: 3600 }, "1day": { label: "Daily", seconds: 86400 } };
 export const NOISE_PERCENT = 0.1;
 
-export function analyseCandles(rows, interval, now) {
+export function analyseCandles(rows, interval, now, config = DEFAULT_TECHNICAL_CONFIG) {
   const duration = TIMEFRAMES[interval]?.seconds;
   const source = Array.isArray(rows) ? rows : [];
   const valid = sessionCandles(mergeCandles([], source), interval);
@@ -12,14 +12,15 @@ export function analyseCandles(rows, interval, now) {
   const completed = valid.filter(row => row.time + duration <= now / 1000);
   const window = completed.slice(-20);
   const last = window.at(-1);
-  const base = { count: window.length, interval, lastTime: last?.time ?? null, ready: false, state: invalid ? "Invalid price data" : "Collecting candles", levels: [], zones: [], confirmation: "None", move: null };
+  const base = { count: window.length, interval, lastTime: last?.time ?? null, ready: false, state: invalid ? "Invalid price data" : "Collecting candles", levels: [], zones: [], confirmation: "None", move: null, marketStructure: null, risk: null };
   if (!duration || invalid || completed.length < 21) return base;
   const anchor = window[0].close;
   const move = (last.close - anchor) / anchor * 100;
-  const result = confirmZones(completed);
-  if (!result.zones) return { ...base, state: result.state, move, close: last.close };
+  const result = confirmZones(completed, config);
+  if (!result.zones) return { ...base, state: result.state, move, close: last.close, marketStructure: result.marketStructure };
   const { support, formingSupport, resistance, buy, sell } = result.zones;
-  return { ...base, ready: true, state: result.state, confirmation: result.confirmation, setup: result.setup, move, close: last.close,
+  return { ...base, ready: true, state: result.state, confirmation: result.confirmation, setup: result.setup, risk: result.risk,
+    marketStructure: result.marketStructure, move, close: last.close,
     stale: now / 1000 - (last.time + duration) > Math.max(duration * 2, 900),
     support: support?.low ?? null, resistance: resistance?.high ?? null,
     // Retired levels remain available to the audit/backtest result, but the
@@ -28,7 +29,7 @@ export function analyseCandles(rows, interval, now) {
     zones: [support, formingSupport, resistance].filter(Boolean),
     previousZones: result.previousZones,
     structure: { supportTouches: support?.touches ?? null, resistanceTouches: resistance?.touches ?? null,
-      breakBuffer: result.zones.breakBuffer, historyCount: result.previousZones.length },
+      breakBuffer: result.zones.breakBuffer, atr: result.zones.atr, historyCount: result.previousZones.length },
     average: window.reduce((sum, row) => sum + row.close, 0) / window.length,
     levels: [resistance && { label: "Buy Watch trigger", price: buy, color: "#70d69c" },
       support && { label: "Sell Watch trigger", price: sell, color: "#ef7b7b" }].filter(Boolean),
@@ -58,6 +59,7 @@ export function makeTechnicalPlan(analysis, { isOpen }) {
     : analysis.state === "Setup expired" ? "The setup reached its phase limit: 10 candles to touch, 10 candles from the first touch to recover, or 10 candles after confirmation. A new break and retest is required."
     : analysis.state === "Pullback developing" ? "The retest has touched the zone. Wait for a completed recovery close beyond the trigger; a zone touch alone does not confirm a watch."
     : analysis.state === "Confirmation weakened" ? "The latest completed close no longer holds beyond the trigger. The watch is paused; the far zone edge still defines invalidation."
+    : analysis.state?.startsWith("Risk filter") ? analysis.risk?.reason || "The technical pattern occurred, but the structural risk filter did not qualify it."
     : analysis.state?.includes("awaiting retest") ? "A break is recorded, but the zone has not yet been touched by a later completed candle. Do not confuse the breakout with retest confirmation."
     : analysis.state === "Support confirmed · finding resistance" ? "Confirmed support is visible and can form a support-bounce or support-break setup. Resistance is still collecting three separated reactions."
     : analysis.state === "Resistance confirmed · finding support" ? "Confirmed resistance is visible and can form a rejection or resistance-break setup. A potential support marker is only a reference until its reactions confirm an active support zone."
@@ -76,7 +78,8 @@ export function getSetupStage(analysis) {
   }
   const side = direction === "buy" ? "Buy" : "Sell";
   const confirmed = analysis.confirmation !== "None" && analysis.setup?.confirmedAt != null;
-  const detail = confirmed ? "Completed-candle conditions met; review invalidation before acting."
+  const detail = analysis.setup?.phase === "risk-rejected" ? analysis.risk?.reason || "Pattern conditions occurred, but the risk filter rejected the setup."
+    : confirmed ? "Completed-candle conditions met; review invalidation before acting."
     : analysis.setup?.phase === "waiting" ? "Break recorded; a later retest is still needed."
     : "The pattern is developing; wait for a completed confirming candle.";
   return { label: `${side} setup ${confirmed ? "confirmed" : "forming"}`, detail, tone: direction === "buy" ? "up" : "down" };

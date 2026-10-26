@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyseCandles, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
+import { DEFAULT_TECHNICAL_CONFIG } from '../src/lib/zoneConfirmation.js';
 const row=(i,close=100,low=99,high=101)=>({time:(i+1)*300,open:close,high,low,close});
 const base=()=>Array.from({length:20},(_,i)=>row(i));
-const analyse=rows=>analyseCandles(rows,'5min',(rows.at(-1).time+300)*1000);
+const analyse=rows=>analyseCandles(rows,'5min',(rows.at(-1).time+300)*1000,{...DEFAULT_TECHNICAL_CONFIG,enforceRisk:false});
 test('buy retest can touch and recover on different completed candles',()=>{
   const rows=[...base(),row(20,102,100,103),row(21,100.8,100.7,101)];
   assert.equal(analyse(rows).state,'Pullback developing');

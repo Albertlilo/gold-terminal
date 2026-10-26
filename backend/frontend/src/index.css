@@ -3127,3 +3127,88 @@ body {
   .candle-toolbar button,
   .timeframe-tabs button { transition: none !important; }
 }
+
+/* Technical structure and risk readouts */
+.market-structure-panel,
+.technical-risk-panel {
+  margin: 18px 0;
+  border: 1px solid rgba(155, 217, 230, 0.2);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(17, 26, 33, 0.96), rgba(11, 16, 22, 0.96));
+}
+
+.structure-timeframe-grid,
+.risk-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.structure-timeframe,
+.risk-metrics > div {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(5, 10, 15, 0.48);
+}
+
+.structure-timeframe > span,
+.risk-metrics span {
+  color: #9eabb6;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.structure-timeframe strong,
+.risk-metrics strong {
+  color: #eaf0f4;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.structure-timeframe small { color: #99a7b2; line-height: 1.45; }
+.structure-load {
+  width: fit-content;
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid rgba(212, 175, 55, 0.34);
+  border-radius: 8px;
+  background: rgba(212, 175, 55, 0.08);
+  color: var(--gold-bright);
+  cursor: pointer;
+}
+.structure-load[aria-pressed="true"] { opacity: 0.75; cursor: default; }
+.structure-selected { border-color: rgba(243, 202, 98, 0.5); box-shadow: inset 0 0 18px rgba(243, 202, 98, 0.045); }
+.structure-selected strong { color: var(--gold-bright); }
+
+.risk-result {
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(6, 11, 16, 0.55);
+  color: #d9e2e8;
+}
+
+.risk-qualified { border-color: rgba(112, 214, 156, 0.38); color: #91e3b2; }
+.risk-rejected { border-color: rgba(243, 202, 98, 0.38); color: #f0d783; }
+.position-size-details,
+.zone-history-details { margin-top: 14px; color: #aab6bf; font-size: 13px; }
+.position-size-details summary,
+.zone-history-details summary { width: fit-content; color: var(--ice); cursor: pointer; }
+.position-size-details > p,
+.zone-history-details > p { line-height: 1.55; }
+.risk-disclaimer { margin: 14px 0 0; color: #85919b; font-size: 11px; line-height: 1.5; }
+
+@media (max-width: 700px) {
+  .structure-timeframe-grid,
+  .risk-metrics { grid-template-columns: 1fr; }
+  .structure-timeframe,
+  .risk-metrics > div { padding: 12px; }
+}

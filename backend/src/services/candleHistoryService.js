@@ -62,7 +62,7 @@ function createHistoryService({ store, fetchCandles, now = Date.now, canRefresh 
           if (fresh.length && canRefresh()) await store.save(interval, fresh);
           state.refreshedAt = new Date(now()).toISOString();
         } catch {
-          state.warning = "Could not refresh candles. Showing available history; the market data provider or storage service may be delayed.";
+          state.warning = "Could not refresh candles. Showing available saved history; the market data provider or storage service may be delayed.";
         } finally {
           state.pending = false;
         }

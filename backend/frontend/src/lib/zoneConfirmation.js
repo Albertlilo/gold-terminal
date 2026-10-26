@@ -5,9 +5,12 @@ export const SETUP_LIFETIME = 10;
 export const RETEST_LIFETIME = 10;
 export const CONFIRMATION_LIFETIME = 10;
 import { historicalSupports } from "./historicalSupport.js";
+import { analyzeMarketStructure } from "./marketStructure.js";
+import { assessTechnicalRisk } from "./technicalRisk.js";
 
-export const RULE_VERSION = "zones-retest-v17-forming-support-reference";
+export const RULE_VERSION = "zones-structure-risk-v18";
 export const NOISE_PERCENT = 0.05;
+export const DEFAULT_TECHNICAL_CONFIG = Object.freeze({ breakAtrMultiplier: 0.2, minimumBreakPercent: 0.0005, minRewardRisk: 1.5, enforceRisk: true });
 const SWING_RADIUS = 2;
 // Reactions must be separated by several completed candles. This prevents a
 // single choppy move from being counted as a stack of independent touches.
@@ -31,7 +34,7 @@ function beginReaction(type, index, candle, zones) {
   };
 }
 
-export function buildZones(previous) {
+export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG) {
   const rows = previous.slice(-STRUCTURE_LOOKBACK);
   if (rows.length < ZONE_LOOKBACK) return null;
   const recent = rows.slice(-ZONE_LOOKBACK);
@@ -40,6 +43,11 @@ export function buildZones(previous) {
     const priorClose = i ? recent[i - 1].close : rows[rows.length - recent.length - 1]?.close ?? row.open;
     return sum + Math.max(row.high - row.low, Math.abs(row.high - priorClose), Math.abs(row.low - priorClose));
   }, 0) / recent.length;
+  const atrRows = rows.slice(-14);
+  const atr = atrRows.reduce((sum, row, i) => {
+    const priorClose = i ? atrRows[i - 1].close : rows[rows.length - atrRows.length - 1]?.close ?? row.open;
+    return sum + Math.max(row.high - row.low, Math.abs(row.high - priorClose), Math.abs(row.low - priorClose));
+  }, 0) / atrRows.length;
   const reference = rows.at(-1).close;
   const mergeDistance = Math.max(averageRange * 0.35, reference * 0.0004);
   const points = [];
@@ -118,20 +126,35 @@ export function buildZones(previous) {
   // Do not squeeze the bands to manufacture two tradeable boundaries in chop.
   if (gap !== null && gap <= 2 * baseWidth + minimumGap) return null;
   const width = baseWidth;
-  const breakBuffer = Math.max(averageRange * 0.2, reference * NOISE_PERCENT / 100);
+  const breakBuffer = Math.max(atr * config.breakAtrMultiplier, reference * config.minimumBreakPercent);
+  const identifiedAt = rows.at(-1).time;
   const support = supportPrice ? { label: "Support zone", low: supportPrice, high: supportPrice + width,
     color: "#70d69c", active: true, touches: supportCandidate?.touches ?? historicalFloor.touches,
     lastTouch: supportCandidate?.lastTouch ?? historicalFloor.lastTime,
-    source: supportCandidate ? "recent" : "older_history" } : null;
+    source: supportCandidate ? "recent" : "older_history", role: "support", status: "active", identifiedAt, statusAt: identifiedAt } : null;
   const formingSupport = !support && formingSupportCandidate ? { label: "Potential support · forming",
     low: formingSupportCandidate.center, high: formingSupportCandidate.center + width,
     color: "#70d69c", active: false, touches: formingSupportCandidate.touches,
-    lastTouch: formingSupportCandidate.lastTouch, source: "forming" } : null;
+    lastTouch: formingSupportCandidate.lastTouch, source: "forming", role: "support", status: "forming", identifiedAt, statusAt: identifiedAt } : null;
   const resistance = resistanceCandidate ? { label: "Resistance zone", low: resistanceCandidate.center - width, high: resistanceCandidate.center,
-    color: "#ef7b7b", active: true, touches: resistanceCandidate.touches, lastTouch: resistanceCandidate.lastTouch } : null;
+    color: "#ef7b7b", active: true, touches: resistanceCandidate.touches, lastTouch: resistanceCandidate.lastTouch,
+    role: "resistance", status: "active", identifiedAt, statusAt: identifiedAt } : null;
+  const targetZones = assessed.filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES).map(cluster => {
+    const halfWidth = Math.max(averageRange * 0.2, reference * 0.00025);
+    const supportRole = cluster.role === "support";
+    const active = supportRole ? cluster === supportCandidate : cluster === resistanceCandidate;
+    const title = `${cluster.role[0].toUpperCase()}${cluster.role.slice(1)}`;
+    const zone = { role: cluster.role, label: active ? `${title} zone` : `Previous ${cluster.role}`, low: supportRole ? cluster.center : cluster.center - halfWidth,
+      high: supportRole ? cluster.center + halfWidth : cluster.center, touches: cluster.touches,
+      identifiedAt: active ? identifiedAt : rows[Math.min(cluster.lastTouchIndex + SWING_RADIUS, rows.length - 1)].time,
+      status: active ? "active" : "previous", active };
+    const crossed = rows.some((row, index) => index > cluster.lastTouchIndex
+      && (supportRole ? row.close < zone.low - breakBuffer : row.close > zone.high + breakBuffer));
+    return crossed ? null : zone;
+  }).filter(Boolean);
   return { support, formingSupport, resistance, buy: resistance ? resistance.high + breakBuffer : null,
     sell: support ? support.low - breakBuffer : null,
-    breakBuffer, averageRange };
+    breakBuffer, averageRange, atr, targets: targetZones };
 }
 
 function sameZone(first, second) {
@@ -150,20 +173,29 @@ function structureState(zones) {
   return "Collecting confirmed structure";
 }
 
-function archiveChangedZones(history, current, next, time) {
+function archiveChangedZones(history, current, next, time, candle) {
   const archived = [...history];
   for (const role of ["support", "resistance"]) {
     if (sameZone(current?.[role], next?.[role])) continue;
     const zone = current?.[role];
     if (!zone) continue;
     const duplicate = archived.some(item => item.role === role && sameZone(item, zone));
-    if (!duplicate) archived.push({ ...zone, id: `${role}-${time}-${zone.low.toFixed(4)}`, role,
-      label: `Previous ${role}`, active: false, color: role === "support" ? "#477f60" : "#8a4e4e", retiredAt: time });
+    if (!duplicate) {
+      const broke = role === "support" ? candle.close < zone.low : candle.close > zone.high;
+      const cleared = role === "support" ? candle.close < zone.low - current.breakBuffer : candle.close > zone.high + current.breakBuffer;
+      const status = cleared ? "broken" : broke ? "invalidated" : "previous";
+      const displayLabel = status === "broken" ? `Broken ${role}`
+        : status === "invalidated" ? `Invalidated ${role}` : `Previous ${role}`;
+      archived.push({ ...zone, id: `${role}-${time}-${zone.low.toFixed(4)}`, role,
+        label: `Previous ${role}`, displayLabel, active: false, status, statusAt: time,
+        statusReason: status === "previous" ? "Replaced by newer confirmed structure" : `Completed close ${cleared ? "cleared" : "crossed"} the zone`,
+        color: role === "support" ? "#477f60" : "#8a4e4e", retiredAt: time });
+    }
   }
   return archived.slice(-MAX_PREVIOUS_ZONES);
 }
 
-export function confirmZones(completed) {
+export function confirmZones(completed, config = DEFAULT_TECHNICAL_CONFIG) {
   let setup = null;
   let zones = null;
   let previousZones = [];
@@ -172,7 +204,7 @@ export function confirmZones(completed) {
   const clears = (value, level, above) => above ? value > level + level * 1e-12 : value < level - level * 1e-12;
   for (let i = ZONE_LOOKBACK; i < completed.length; i++) {
     const candle = completed[i];
-    if (!zones) zones = buildZones(completed.slice(0, i));
+    if (!zones) zones = buildZones(completed.slice(0, i), config);
     if (!zones) { state = "Collecting confirmed structure"; continue; }
     if (setup) {
       const zone = setup.direction === "buy" ? setup.zones.resistance : setup.zones.support;
@@ -193,6 +225,12 @@ export function confirmZones(completed) {
         // new watch still needs a different, later candle to retest the zone.
         const reactionBreak = invalid && ((supportBounce && clears(candle.close, zones.sell, false))
           || (resistanceRejection && clears(candle.close, zones.buy, true)));
+        if (invalid) {
+          const role = supportBounce ? "support" : "resistance";
+          zones = { ...zones, [role]: { ...zones[role], active: false, status: reactionBreak ? "broken" : "invalidated",
+            displayLabel: `${reactionBreak ? "Broken" : "Invalidated"} ${role}`, statusAt: candle.time,
+            statusReason: "Completed candle closed through the zone boundary" } };
+        }
         if (reactionBreak) setup = { direction: supportBounce ? "sell" : "buy", index: i,
           time: candle.time, zones, touchedIndex: null, touchedAt: null, confirmedAt: null, confirmedIndex: null };
         continue;
@@ -242,11 +280,21 @@ export function confirmZones(completed) {
       continue;
     }
     confirmation = "None";
+    // Preserve established trigger boundaries while refreshing only volatility
+    // and known opposing targets from the historical prefix available now.
+    // This lets risk filtering see already-known supply/demand without moving
+    // the watched level or reading a later candle.
+    const targetContext = buildZones(completed.slice(0, i), config);
+    if (targetContext && zones) zones = { ...zones, targets: targetContext.targets, atr: targetContext.atr };
     const priorClose = completed[i - 1].close;
     const buy = zones.resistance && !clears(priorClose, zones.buy, true) && clears(candle.close, zones.buy, true);
     const sell = zones.support && !clears(priorClose, zones.sell, false) && clears(candle.close, zones.sell, false);
     if (buy || sell) {
-      setup = { direction: buy ? "buy" : "sell", index: i, time: candle.time, zones, touchedIndex: null, touchedAt: null, confirmedAt: null, confirmedIndex: null };
+      const brokenRole = buy ? "resistance" : "support";
+      const brokenZone = zones[brokenRole];
+      const markedZones = { ...zones, [brokenRole]: { ...brokenZone, active: false, status: "broken",
+        displayLabel: `Broken ${brokenRole}`, statusAt: candle.time, statusReason: "Closed beyond the volatility-adjusted break trigger" } };
+      setup = { direction: buy ? "buy" : "sell", index: i, time: candle.time, zones: markedZones, touchedIndex: null, touchedAt: null, confirmedAt: null, confirmedIndex: null };
       state = buy ? "Breakout · awaiting retest" : "Support break · awaiting retest";
     } else {
       const prior = completed[i - 1];
@@ -271,24 +319,34 @@ export function confirmZones(completed) {
         // Evaluate this candle against the existing structure before allowing
         // three confirmed swing reactions to introduce a new pair of zones.
         // A recalculation can therefore never hide a break on the same candle.
-        const nextZones = buildZones(completed.slice(0, i));
+        const nextZones = buildZones(completed.slice(0, i), config);
         // Keep an established two-sided range while price is still inside it.
         // Smaller internal swings are not evidence that its boundaries failed.
         const insideEstablishedRange = zones.support && zones.resistance
           && candle.close >= zones.support.low && candle.close <= zones.resistance.high;
-        if (!insideEstablishedRange && nextZones && (!sameZone(zones.support, nextZones.support)
+        const changed = !nextZones || !sameZone(zones.support, nextZones.support)
           || !sameZone(zones.resistance, nextZones.resistance)
-          || !sameZone(zones.formingSupport, nextZones.formingSupport))) {
-          previousZones = archiveChangedZones(previousZones, zones, nextZones, candle.time);
+          || !sameZone(zones.formingSupport, nextZones.formingSupport);
+        if (!insideEstablishedRange && changed) {
+          previousZones = archiveChangedZones(previousZones, zones, nextZones, candle.time, candle);
           zones = nextZones;
           state = structureState(zones);
         }
       }
     }
   }
-  const phase = setup?.confirmedIndex !== null && setup?.confirmedIndex !== undefined ? "confirmed" : setup?.touchedIndex !== null && setup?.touchedIndex !== undefined ? "retest" : "waiting";
+  let risk = null;
+  if (config.enforceRisk && setup?.confirmedIndex !== null && setup?.confirmedIndex !== undefined && confirmation !== "None") {
+    risk = assessTechnicalRisk({ setup, zones: setup.zones,
+      entry: completed.at(-1)?.close, atr: setup.zones.atr, breakBuffer: setup.zones.breakBuffer, minRewardRisk: config.minRewardRisk });
+    if (!risk.qualified) {
+      confirmation = "None";
+      state = risk.reason.includes("minimum") ? "Risk filter · reward below minimum" : "Risk filter · no structural target";
+    }
+  }
+  const phase = risk && !risk.qualified ? "risk-rejected" : setup?.confirmedIndex !== null && setup?.confirmedIndex !== undefined ? "confirmed" : setup?.touchedIndex !== null && setup?.touchedIndex !== undefined ? "retest" : "waiting";
   const phaseLimit = phase === "confirmed" ? CONFIRMATION_LIFETIME : phase === "retest" ? RETEST_LIFETIME : SETUP_LIFETIME;
-  return { zones, previousZones, state, confirmation, setup: setup ? { type: setup.type ?? "break-retest", direction: setup.direction, breakTime: ["support-bounce", "resistance-rejection"].includes(setup.type) ? null : setup.time,
+  return { zones, previousZones, state, confirmation, risk, marketStructure: analyzeMarketStructure(completed), setup: setup ? { type: setup.type ?? "break-retest", direction: setup.direction, breakTime: ["support-bounce", "resistance-rejection"].includes(setup.type) ? null : setup.time,
     startTime: setup.time, touchedAt: setup.touchedAt, confirmedAt: setup.confirmedAt,
     phase, barsRemaining: phaseLimit - (completed.length - 1 - (setup.confirmedIndex ?? setup.touchedIndex ?? setup.index)) } : null };
 }

@@ -10,9 +10,9 @@ export function riskReward(entry, stop, target, direction) {
 }
 
 // Technical-only replay: signals use only the prefix known before the entry bar.
-export function backtestCandles(rows, interval, { now, cost, rewardMultiple = 2, maxBars = 10 }, session = getGoldSession) {
+export function backtestCandles(rows, interval, { now, cost, maxBars = 10 }, session = getGoldSession) {
   const seconds = TIMEFRAMES[interval]?.seconds;
-  if (!seconds || !Number.isFinite(now) || !Number.isFinite(cost) || cost < 0 || !Number.isFinite(rewardMultiple) || rewardMultiple <= 0 || !Number.isInteger(maxBars) || maxBars < 1) throw Error("Enter valid replay assumptions.");
+  if (!seconds || !Number.isFinite(now) || !Number.isFinite(cost) || cost < 0 || !Number.isInteger(maxBars) || maxBars < 1) throw Error("Enter valid replay assumptions.");
   const valid = mergeCandles([], rows);
   if (valid.length !== rows.length) throw Error("Replay needs valid, unique candles.");
   const candles = sessionCandles(valid, interval).filter(row => (row.time + seconds) * 1000 <= now);
@@ -25,18 +25,19 @@ export function backtestCandles(rows, interval, { now, cost, rewardMultiple = 2,
     if (!position && session(candle.time * 1000).isOpen) {
       const prior = analyseCandles(candles.slice(0, i), interval, candle.time * 1000);
       const stamp = prior.setup?.confirmedAt;
-      if (stamp === candles[i - 1].time && candle.time === stamp + seconds && !used.has(stamp) && prior.confirmation !== "None") {
+      if (stamp === candles[i - 1].time && candle.time === stamp + seconds && !used.has(stamp) && prior.confirmation !== "None" && prior.risk?.qualified) {
         used.add(stamp);
         const sign = ["Buy Watch", "Support Bounce"].includes(prior.confirmation) ? 1 : -1;
-        const support = prior.zones.find(zone => zone.label === "Support zone");
-        const resistance = prior.zones.find(zone => zone.label === "Resistance zone");
-        const stop = prior.confirmation === "Support Bounce" ? support?.low
-          : prior.confirmation === "Resistance Rejection" ? resistance?.high
-            : sign === 1 ? resistance?.low : support?.high;
+        const stop = prior.risk.stop;
+        const target = prior.risk.target;
         const risk = (candle.open - stop) * sign;
-        if (risk > 0) {
+        const reward = (target - candle.open) * sign;
+        const plannedRewardRisk = risk > 0 && reward > 0 ? reward / risk : null;
+        // The configured round-trip cost is deducted once from the result.
+        // Skip gaps that erase the minimum structural R:R before entry.
+        if (plannedRewardRisk !== null && plannedRewardRisk >= prior.risk.minRewardRisk) {
           position = { entryTime: candle.time, signalTime: stamp, direction: sign === 1 ? "buy" : "sell", entry: candle.open, stop,
-            target: candle.open + sign * risk * rewardMultiple, risk, sign, index: i };
+            target, risk, plannedRewardRisk, sign, index: i };
           signals.push({ signalTime: stamp, direction: position.direction, entryTime: candle.time });
         }
       }
@@ -55,7 +56,17 @@ export function backtestCandles(rows, interval, { now, cost, rewardMultiple = 2,
       position = null;
     }
   }
+  let equityR = 0, peakR = 0, maxDrawdownR = 0;
+  for (const trade of trades) {
+    equityR += trade.netR;
+    peakR = Math.max(peakR, equityR);
+    maxDrawdownR = Math.max(maxDrawdownR, peakR - equityR);
+  }
+  const average = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   return { trades, signals, openTrade: position, candleCount: candles.length,
     netR: trades.reduce((sum, trade) => sum + trade.netR, 0),
-    winRate: trades.length ? trades.filter(trade => trade.net > 0).length / trades.length * 100 : null };
+    winRate: trades.length ? trades.filter(trade => trade.net > 0).length / trades.length * 100 : null,
+    averageRewardRisk: average(trades.map(trade => trade.plannedRewardRisk)),
+    expectancyR: average(trades.map(trade => trade.netR)), maxDrawdownR,
+    sampleSize: trades.length };
 }

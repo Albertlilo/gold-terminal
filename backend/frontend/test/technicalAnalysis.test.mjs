@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyseCandles, getSetupStage, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
 import { getGoldSession } from '../src/lib/goldSession.js';
-import { buildZones } from '../src/lib/zoneConfirmation.js';
+import { buildZones, DEFAULT_TECHNICAL_CONFIG } from '../src/lib/zoneConfirmation.js';
 const testSessionStart = Date.parse('2026-10-19T22:00:00Z') / 1000;
 const row = (i, close=100, low=99, high=101, seconds=300) => ({time:testSessionStart+(i+1)*seconds,open:close,close,low,high});
 const base = (seconds=300) => Array.from({length:20},(_,i)=>row(i,100,99,101,seconds));
-const analyse = (rows, interval='5min', seconds=300) => analyseCandles(rows,interval,(rows.at(-1).time+seconds)*1000);
+const analyse = (rows, interval='5min', seconds=300) => analyseCandles(rows,interval,(rows.at(-1).time+seconds)*1000,{...DEFAULT_TECHNICAL_CONFIG,enforceRisk:false});
 
 test('price breakout alone, including a same-candle touch, cannot trigger Buy Watch',()=>{
   const a=analyse([...base(),row(20,102,100,103)]);
@@ -71,10 +71,14 @@ test('noise boundary is inclusive and wicks alone cannot establish breaks',()=>{
     assert.equal(makeTechnicalPlan(a,{isOpen:true}).signal,'Wait');
   }
 });
-test('zones freeze at break rather than incorporating new highs',()=>{
+test('zones freeze at the breakout and record the resistance status change',()=>{
   const broken=[...base(),row(20,102,100,103)];
   const a=analyse([...broken,row(21,103,102,200),row(22,101.5,100.9,102)]);
-  assert.deepEqual(a.zones,analyse(broken).zones);assert.equal(a.confirmation,'Buy Watch');
+  const original=analyse(broken).zones.find(zone=>zone.label==='Resistance zone');
+  const persisted=a.zones.find(zone=>zone.label==='Resistance zone');
+  assert.equal(persisted.low,original.low);assert.equal(persisted.high,original.high);
+  assert.equal(persisted.status,'broken');assert.equal(persisted.statusAt,broken.at(-1).time);
+  assert.equal(a.confirmation,'Buy Watch');
 });
 test('internal consolidation cannot pull established support and resistance together',()=>{
   const rows=[...base(),...Array.from({length:20},(_,i)=>row(i+20,100,99.7,100.3))];

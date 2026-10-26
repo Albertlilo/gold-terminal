@@ -291,7 +291,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
           })}
           {bands.filter(zone => zone.high >= min && zone.low <= max).map(zone => <g key={zone.id || zone.label}>
             <rect x="8" y={y(Math.min(max, zone.high))} width={plotWidth} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={zone.color} fillOpacity={zone.active === false ? "0.035" : "0.12"} stroke={zone.color} strokeOpacity={zone.active === false ? "0.3" : "0.55"} strokeDasharray={zone.active === false ? "4 5" : undefined} />
-            <text x="12" y={Math.min(bottom - 5, y(Math.min(max, zone.high)) + 13)} fill={zone.color} stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize={width < 420 ? "10" : "12"}>{zone.label}</text>
+            <text x="12" y={Math.min(bottom - 5, y(Math.min(max, zone.high)) + 13)} fill={zone.color} stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize={width < 420 ? "10" : "12"}>{zone.displayLabel || zone.label}</text>
           </g>)}
           {visiblePastSupports.map(zone => {
             const first = Math.max(0, visible.findIndex(row => row.time >= zone.firstTime));
@@ -335,7 +335,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
         {visible.length > 0 && quiet && <p className="candle-hint">Prices cover a narrow range. Auto-fit enlarges the view without changing any prices.</p>}
         <p className="candle-hint">Analysis uses completed candles; the newest candle may still be forming. Older history depends on provider coverage.</p>
       </details>
-      {bands.length > 0 && <div className="candle-levels">{bands.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label}: {zone.low.toFixed(2)}–{zone.high.toFixed(2)}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}{zone.high < min || zone.low > max ? " (outside view)" : ""}</span>)}</div>}
+      {bands.length > 0 && <div className="candle-levels">{bands.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.displayLabel || zone.label}: {zone.low.toFixed(2)}–{zone.high.toFixed(2)}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}{zone.high < min || zone.low > max ? " (outside view)" : ""}</span>)}</div>}
       {levels.length > 0 && <div className="candle-levels">{levels.map(level => <span key={level.label} style={{ color: level.color }}>{level.label}: {level.price.toFixed(2)}{level.price < min || level.price > max ? " (outside view)" : ""}</span>)}</div>}
     </>
   );
