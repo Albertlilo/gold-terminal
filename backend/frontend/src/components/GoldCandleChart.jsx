@@ -27,7 +27,7 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EM
   return (
     <section className={`chart-panel candle-panel${expanded ? " candle-panel-expanded" : ""}`}>
       <div className="chart-header candle-header">
-        <div><span className="section-label">XAUUSD · Saved history</span><h3>Gold Candles</h3></div>
+        <div><span className="section-label">XAUUSD · Price history</span><h3>Gold Candles</h3></div>
         <button className="candle-expand" type="button" aria-pressed={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "Close full screen" : "Full screen chart"}</button>
         <label className="candle-timeframe">Timeframe
           <select value={interval} onChange={event => (onIntervalChange || setIntervalValue)(event.target.value)}>
@@ -97,8 +97,8 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
           failures = 0;
           setCandles(previous => mergeCandles(previous, data.candles));
           setStatus(data.warning || (data.refreshing
-            ? "Showing saved candles while newer prices refresh in the background."
-            : data.candles.length ? "History saved in Atlas. Updates checked every 5 minutes."
+            ? "Showing available candles while the latest prices update."
+            : data.candles.length ? "Price history is up to date."
               : "No candles available for this timeframe."));
           if (open && data.refreshing && followups < 2) {
             followups++;
@@ -327,11 +327,14 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
         </svg>
       </div>
       <p className="candle-status" role="status">{status}</p>
-      <p className="candle-hint">{visible.length} shown / {chartCandles.length} session candles loaded · UTC · Drag right for older history; more loads at the edge. Pinch or scroll to zoom. Tap a candle for its numbers. Scroll the page outside the chart.</p>
-      {showPastSupport && <p className="candle-hint">Past support markers cover earlier candle reactions only. They are chart references, not current support or signal triggers.</p>}
-      {hiddenClosed > 0 && <p className="candle-hint">{hiddenClosed} saved candle{hiddenClosed === 1 ? "" : "s"} from scheduled closed hours hidden from this intraday chart and its technical analysis. Saved history remains in Atlas.</p>}
-      {visible.length > 0 && quiet && <p className="candle-hint">The visible prices cover a narrow range. Auto-fit enlarges that range; it does not change saved prices.</p>}
-      <p className="candle-hint">Gold price badge = last visible candle close. Analysis uses completed candles; the newest candle may still be forming. Older history depends on saved data and your provider’s coverage.</p>
+      <p className="candle-hint">{visible.length} candles shown · UTC · Drag to pan; pinch or scroll to zoom. Select a candle to inspect its prices.</p>
+      <details className="chart-notes">
+        <summary>Chart and data notes</summary>
+        {showPastSupport && <p className="candle-hint">Past support markers show earlier price reactions only. They are references, not current support or signal triggers.</p>}
+        {hiddenClosed > 0 && <p className="candle-hint">{hiddenClosed} candle{hiddenClosed === 1 ? "" : "s"} from scheduled closed hours are hidden in this intraday view.</p>}
+        {visible.length > 0 && quiet && <p className="candle-hint">Prices cover a narrow range. Auto-fit enlarges the view without changing any prices.</p>}
+        <p className="candle-hint">Analysis uses completed candles; the newest candle may still be forming. Older history depends on provider coverage.</p>
+      </details>
       {bands.length > 0 && <div className="candle-levels">{bands.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label}: {zone.low.toFixed(2)}–{zone.high.toFixed(2)}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}{zone.high < min || zone.low > max ? " (outside view)" : ""}</span>)}</div>}
       {levels.length > 0 && <div className="candle-levels">{levels.map(level => <span key={level.label} style={{ color: level.color }}>{level.label}: {level.price.toFixed(2)}{level.price < min || level.price > max ? " (outside view)" : ""}</span>)}</div>}
     </>

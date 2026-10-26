@@ -62,7 +62,7 @@ function createHistoryService({ store, fetchCandles, now = Date.now, canRefresh 
           if (fresh.length && canRefresh()) await store.save(interval, fresh);
           state.refreshedAt = new Date(now()).toISOString();
         } catch {
-          state.warning = "Could not refresh candles. Showing saved history; check the data plan, API quota and database connection.";
+          state.warning = "Could not refresh candles. Showing available history; the market data provider or storage service may be delayed.";
         } finally {
           state.pending = false;
         }
@@ -76,7 +76,7 @@ function createHistoryService({ store, fetchCandles, now = Date.now, canRefresh 
       candles = await store.read(interval, before, PAGE_SIZE);
     }
     if (!candles.length && state?.warning) {
-      const error = new Error("Candle history is unavailable. Check Twelve Data historical access and Atlas configuration.");
+      const error = new Error("Candle history is unavailable. Check historical data access and storage connection.");
       error.status = 503;
       throw error;
     }

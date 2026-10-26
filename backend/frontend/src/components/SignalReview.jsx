@@ -21,10 +21,12 @@ export default function SignalReview({ audit, rows, interval, now }) {
   }
   return <section className="terminal-card signal-review">
     <div className="terminal-panel-title"><h2>Signal Review</h2><span>VERIFY THE SETUP</span></div>
-    <p className="coverage-status"><strong>Audit: {audit?.status === "saved" ? "Saved in Atlas" : audit?.status === "collecting" ? "Collecting completed candles" : "Not available"}</strong></p>
+    <p className="coverage-status"><strong>Technical log: {audit?.status === "saved" ? "Recorded" : audit?.status === "collecting" ? "Waiting for completed candles" : "Unavailable"}</strong></p>
     {audit?.warning && <p className="analysis-method">{audit.warning}</p>}
-    {audit?.revisedInput && <p className="coverage-status">Candle inputs changed after the first record. The original recorded decision is retained.</p>}
-    <p className="analysis-method">First observed: {stamp(audit?.observedAt)}. Records start when the website requests this timeframe; this is not continuous market monitoring. New records contain technical signals only; macro remains separate.</p>
+    <details><summary>About the technical log</summary>
+      {audit?.revisedInput && <p className="analysis-method">Candle inputs changed after the first record. The original recorded decision is retained.</p>}
+      <p className="analysis-method">First observed: {stamp(audit?.observedAt)}. Records start when this timeframe is opened; this is not continuous market monitoring. The log records technical signals only; macro remains separate.</p>
+    </details>
     <details><summary>Recent recorded decisions</summary><ul className="audit-records">{audit?.recent?.length ? audit.recent.map(record => <li key={record.key}><time>{stamp(record.observedAt)}</time><strong>{record.analysis.confirmation === "None" ? "No confirmation" : record.analysis.confirmation}</strong><span>{record.analysis.state} · Technical status: {record.technicalSignal || "Legacy record"} · {record.ruleVersion || "Earlier rules"}</span></li>) : <li>No saved records returned yet.</li>}</ul></details>
     <details><summary>Risk-to-reward calculator</summary>
       <p className="analysis-method">Enter your own planned prices. This calculator does not choose an entry, stop or target.</p>

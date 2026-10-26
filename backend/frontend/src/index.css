@@ -3041,6 +3041,22 @@ body {
 .terminal-panel-title > span { color: var(--gold-bright); }
 .technical-terminal .candle-panel { box-shadow: 0 16px 44px rgba(0, 0, 0, 0.25), inset 0 1px rgba(255, 255, 255, 0.025); }
 
+.chart-notes {
+  margin-top: 9px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chart-notes summary {
+  width: fit-content;
+  color: #b7c4ce;
+  cursor: pointer;
+}
+
+.chart-notes[open] summary { margin-bottom: 8px; color: var(--gold-bright); }
+.chart-notes .candle-hint { margin: 6px 0; }
+.signal-review details summary { width: fit-content; }
+
 .card:hover,
 .home-force-card:hover,
 .home-watch-panel:hover,
