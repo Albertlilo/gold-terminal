@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import GoldCandleChart from "../components/GoldCandleChart";
 import { analyseCandles, getSetupStage, makeTechnicalPlan, TIMEFRAMES } from "../lib/technicalAnalysis";
 import { getGoldSession } from "../lib/goldSession";
@@ -24,11 +24,11 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
   const receiveCandles = useCallback((timeframe, candles) => setHistory(previous => ({ ...previous, [timeframe]: candles })), []);
   const now = currentTime.getTime();
   const session = getGoldSession(now);
-  const calculated = analyseCandles(history[interval], interval, now);
-  const structureTimeframes = Object.entries(TIMEFRAMES).map(([key]) => ({
+  const calculated = useMemo(() => analyseCandles(history[interval], interval, currentTime.getTime()), [history, interval, currentTime]);
+  const structureTimeframes = useMemo(() => Object.entries(TIMEFRAMES).map(([key]) => ({
     key,
-    analysis: history[key] ? analyseCandles(history[key], key, now) : null,
-  }));
+    analysis: key === interval ? calculated : history[key] ? analyseCandles(history[key], key, currentTime.getTime()) : null,
+  })), [history, interval, currentTime, calculated]);
   const audit = audits[interval];
   const versionMismatch = audit?.status === "saved" && audit.ruleVersion !== RULE_VERSION;
   const recorded = audit?.status === "saved" && !versionMismatch ? audit.analysis : null;
@@ -44,13 +44,23 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
   const calculatedPlan = makeTechnicalPlan(analysis, { isOpen: session.isOpen });
   const plan = versionMismatch ? { ...calculatedPlan, signal: "Wait", reason: "The backend still has the previous technical rules. Wait for both deployments to finish before using the technical signal." } : calculatedPlan;
   const setupStage = getSetupStage(analysis);
+  const conciseReason = !session.isOpen ? "Market closed."
+    : !analysis.ready ? "Waiting for completed candles."
+      : analysis.stale ? "Candle data is delayed."
+        : analysis.state === "Pullback developing" ? "Retest in progress; wait for a confirming close."
+          : analysis.state?.includes("awaiting retest") ? "Break recorded; waiting for a later retest."
+            : analysis.state === "Setup expired" ? "Setup expired; wait for a new break."
+              : analysis.state === "Retest invalidated" ? "Retest invalidated by a completed close."
+                : analysis.state?.startsWith("Risk filter") ? "Pattern rejected by the risk filter."
+                  : plan.signal !== "Wait" ? "Closed-candle setup confirmed; macro stays separate."
+                    : "No confirmed setup on this timeframe.";
   return (
     <div className="technical-terminal">
       <header className="terminal-brand">
         <div><span className="gold-bar-icon" aria-hidden="true">▰</span><div><strong><span>Trendline</span> Insight</strong><small>DATA · INSIGHTS · DISCIPLINE</small></div></div>
         <div className="terminal-symbol"><span>XAUUSD</span><time dateTime={currentTime.toISOString()}>{currentTime.toLocaleString()}</time></div>
       </header>
-      <div className="terminal-intro"><h1>Technical Analysis</h1><p>Daily structure · 1H primary setup · 5M entry timing. Each timeframe is calculated independently from its own completed candles.</p><p className="analysis-method">Only the selected chart timeframe is refreshed. Other timeframe summaries use candles already loaded in this session. WAIT is a status, not an order button.</p></div>
+      <div className="terminal-intro"><h1>Technical Analysis</h1><p>Daily trend · 1H setup · 5M timing. Macro stays separate.</p><p className="analysis-method">Only the selected timeframe refreshes. Other readings use loaded candles.</p></div>
       <div className="terminal-live-price"><div><span>XAUUSD · {session.isOpen ? "Latest price" : "Last available price"}</span><strong>{goldPrice ?? "—"}<small>USD / oz</small></strong></div><p>{!session.isOpen ? "Market closed · price held" : dashboardError || !Number.isFinite(dashboardData?.market?.xauusd?.price) || dashboardData?.market?.xauusd?.stale ? "Waiting for a fresh quote" : "Live price · checked every 30 seconds"}</p></div>
       <div className={`session-notice ${session.isOpen ? "" : "session-closed"}`} role="status">
         <span className="session-dot" /> <strong>{session.label}</strong>
@@ -62,11 +72,11 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
       <section className="terminal-summary technical-only-summary" aria-label="Signal summary">
         <article className="terminal-card summary-card tone-neutral"><span className="terminal-eyebrow">↗ &nbsp; Technical State</span><h2>{analysis.state}</h2><p>{TIMEFRAMES[interval].label} · completed candles</p><p>{analysis.state === "Between zones" ? "No confirmation yet" : analysis.stale ? "Delayed candle data" : "Volatility-adjusted break clearance"}</p></article>
         <article className={`terminal-card summary-card tone-${setupStage.tone}`}><span className="terminal-eyebrow">◉ &nbsp; Setup Stage</span><h2>{setupStage.label}</h2><p>{setupStage.detail}</p>{(analysis.stale || !session.isOpen || versionMismatch) && <p>Historical or unavailable for a fresh signal right now.</p>}</article>
-        <article className={`terminal-card summary-card tone-${["Sell Watch", "Resistance Rejection"].includes(plan.signal) ? "down" : ["Buy Watch", "Support Bounce"].includes(plan.signal) ? "up" : "neutral"}`}><span className="terminal-eyebrow">◎ &nbsp; Technical Signal</span><h2 className="technical-signal">{plan.signal.toUpperCase()}</h2><p>{plan.reason}</p></article>
+        <article className={`terminal-card summary-card tone-${["Sell Watch", "Resistance Rejection"].includes(plan.signal) ? "down" : ["Buy Watch", "Support Bounce"].includes(plan.signal) ? "up" : "neutral"}`}><span className="terminal-eyebrow">◎ &nbsp; Technical Signal</span><h2 className="technical-signal">{plan.signal.toUpperCase()}</h2><p>{conciseReason}</p></article>
       </section>
       <section className="terminal-card read-panel">
         <div className="terminal-panel-title"><h2><span aria-hidden="true">▤</span> How to Read This</h2><span>DISCIPLINE WINS</span></div>
-        <ol><li><strong>{analysis.state}</strong><span>{analysis.ready ? "Support bounces, resistance rejections and breakout/retest watches are separate technical setups. A completed candle must confirm one." : "Load this timeframe to calculate its levels."}</span></li><li><strong>Action</strong><span>{plan.reason}</span></li></ol>
+        <p>Wait for a completed-candle setup. Macro does not change technical signals.</p>
       </section>
       <section className="terminal-card market-structure-panel">
         <div className="terminal-panel-title"><h2>Market Structure</h2><span>INDEPENDENT TIMEFRAMES</span></div>
@@ -94,7 +104,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <div className="timeframe-tabs" aria-label="Analysis timeframe">{Object.entries(TIMEFRAMES).map(([key, value]) => <button key={key} aria-pressed={interval === key} onClick={() => setInterval(key)}>{value.label}</button>)}</div>
         <p className="technical-confirmation"><strong>Technical confirmation:</strong> {analysis.stale ? "Delayed data — historical confirmation only" : analysis.confirmation === "None" ? "Not confirmed" : analysis.confirmation} · independent of macro bias</p>
         <p className="technical-confirmation"><strong>{plan.signal === "Wait" ? "Why WAIT?" : "Why this watch?"}</strong> {plan.reason}</p>
-        <p className="analysis-method">Selected timeframe: {TIMEFRAMES[interval].label}. A retest can develop across several completed candles. There are separate limits of 10 bars to first touch, 10 bars from that touch to recovery, and 10 bars from confirmation. Repeated touches do not reset the clock. A close through the far zone edge still invalidates the setup; the zone boundary is not a recommended broker stop loss.</p>
+        <p className="analysis-method">{TIMEFRAMES[interval].label}. Setups expire after 10 completed bars per stage; a closing candle can invalidate sooner.</p>
         {analysis.setup && <div className="technical-confirmation"><strong>{analysis.state}</strong> · {analysis.setup.barsRemaining} completed-bar step(s) until this phase expires.<br />{analysis.setup.type === "support-bounce" ? "Support approach candle opened" : analysis.setup.type === "resistance-rejection" ? "Resistance approach candle opened" : "Break candle opened"}: {stamp((analysis.setup.startTime ?? analysis.setup.breakTime) * 1000)}<br />{analysis.setup.type === "support-bounce" ? "Support touch" : analysis.setup.type === "resistance-rejection" ? "Resistance touch" : "First retest touch"}: {analysis.setup.touchedAt ? stamp((analysis.setup.touchedAt + TIMEFRAMES[interval].seconds) * 1000) : "Still waiting"}<br />Confirmation: {analysis.setup.confirmedAt ? stamp((analysis.setup.confirmedAt + TIMEFRAMES[interval].seconds) * 1000) : "Not confirmed"}<br /><small>Local times. The countdown is not a guaranteed entry window; invalidation can happen on the next completed candle.</small></div>}
         {analysis.ready && !recorded && <p className="analysis-method">Provisional calculation · no verified saved decision is available for this response.</p>}
         <div className="zone-readout">{activeZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.displayLabel || zone.label}: {money(zone.low)}–{money(zone.high)} · {zone.status || "active"}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}</span>)}{showPreviousZones && previousZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label} · {zone.status || "previous"}: {money(zone.low)}–{money(zone.high)}</span>)}</div>
@@ -102,15 +112,17 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
           {[...activeZones, ...(analysis.previousZones || []).slice(-6)].map(zone => <p key={`${zone.id || zone.label}-times`}><strong>{zone.displayLabel || zone.label}</strong> · {zone.status || "active"} · identified {zone.identifiedAt ? stamp(zone.identifiedAt * 1000) : "time unavailable"} · status changed {zone.statusAt ? stamp(zone.statusAt * 1000) : "not recorded"}{zone.statusReason ? ` · ${zone.statusReason}` : ""}</p>)}
         </details>
         {activeZones.some(zone => zone.source === "forming") && <p className="analysis-method">Dashed potential support is a developing reference only. Support Bounce and Sell Watch still need confirmed active support.</p>}
-        <p className="analysis-method">Setup availability: {hasSupport ? "Support Bounce and Sell Watch can form from active support." : "Support Bounce and Sell Watch are waiting for a newly confirmed support zone."} {hasResistance ? "Resistance Rejection and Buy Watch can form from active resistance." : "Resistance Rejection and Buy Watch are waiting for a newly confirmed resistance zone."} Previous zones are historical references only and never trigger a new setup.</p>
+        <p className="analysis-method">Support: {hasSupport ? "active" : "not confirmed"}. Resistance: {hasResistance ? "active" : "not confirmed"}. Previous zones are references only.</p>
         <div className="analysis-metrics"><div><span>Last completed close</span><strong>{money(analysis.close)}</strong></div><div><span>Window momentum</span><strong>{Number.isFinite(analysis.move) ? `${analysis.move > 0 ? "+" : ""}${analysis.move.toFixed(3)}%` : "—"}</strong></div><div><span>Support lower edge</span><strong>{money(analysis.support)}</strong></div><div><span>Resistance upper edge</span><strong>{money(analysis.resistance)}</strong></div><div><span>Support reactions</span><strong>{analysis.structure?.supportTouches ?? "—"}</strong></div><div><span>Resistance reactions</span><strong>{analysis.structure?.resistanceTouches ?? "—"}</strong></div><div><span>ATR · 14 candles</span><strong>{money(analysis.structure?.atr)}</strong></div><div><span>Market structure</span><strong>{analysis.marketStructure?.trend ?? "—"}</strong></div><div><span>Latest structure break</span><strong>{analysis.marketStructure?.event ?? "—"}</strong></div></div>
-        <p className="analysis-method">Active resistance and recent support come from clustered swings across up to 120 completed candles. A new support can qualify after two separated swing reactions plus a completed bullish return near the floor; any later completed close through that floor cancels it. Otherwise, three separated reactions are required. If recent support is missing, an older support from up to 500 completed candles can qualify with three separated reactions, or two older reactions plus a completed bullish return near the level, and no later completed close has broken it. A distant or broken old level stays historical. Established range boundaries stay fixed while price remains inside them; smaller internal swings do not pull support and resistance together. Volatility includes gaps, and cramped candidate bands are rejected. The latest retired support and resistance can be shown as faint historical references. Breakout/retest watches need a fresh completed crossing beyond a volatility buffer, followed by a later retest and recovery. During that setup, the original zone stays visible: broken support is tested as resistance, and broken resistance as support. A close through its far edge invalidates the retest. An expired break cannot restart just because price remains beyond the level. Support Bounce and Resistance Rejection remain separate reaction setups. Forming candles never confirm, and macro never creates or filters a technical signal. These rules still require forward testing and do not guarantee profitability.</p>
+        <details className="analysis-method-details"><summary>How the technical rules work</summary>
+          <p className="analysis-method">Zones use confirmed swings and repeated reactions. Support can qualify after two separated reactions plus a bullish return; otherwise three are required. Breakout watches need a closed-candle break beyond an ATR buffer, then a later retest and recovery. Bounce and rejection are separate setups. Previous zones cannot trigger signals. A structural stop, intact target and minimum 1.5:1 reward-to-risk are required. Macro never changes technical signals. These rules do not guarantee profit.</p>
+        </details>
         {analysis.lastTime && <p className="analysis-method">Last analysed candle opened: {new Date(analysis.lastTime * 1000).toUTCString()}</p>}
       </section>
       <section className="terminal-card trading-plan">
         <div className="terminal-panel-title"><h2><span aria-hidden="true">▣</span> Technical Setup</h2><span>PLAN › CONFIRM › REVIEW</span></div>
         <dl><div><dt>Setup Direction</dt><dd>{plan.preferred}</dd></div><div><dt>Confirmation</dt><dd>{plan.confirmation}</dd></div><div><dt>Invalidation</dt><dd>{plan.invalidation}</dd></div><div><dt>Current Decision</dt><dd><strong className="decision-pill">{plan.signal.toUpperCase()}</strong></dd></div></dl>
-        <p className="analysis-method">Support Bounce is a standalone technical setup: support must be approached from above, touched, and reclaimed by a bullish completed candle. Resistance Rejection is its sell-side counterpart: resistance is approached from below, touched, and rejected by a bearish completed candle. Buy Watch still requires a resistance breakout and successful retest; Sell Watch still requires a support break and failed retest. Macro scoring does not create or filter any of these signals. These are watch conditions, not automatic entries or stop-loss instructions.</p>
+        <details className="analysis-method-details"><summary>Setup definitions</summary><p className="analysis-method">Support Bounce: support touch + bullish close. Resistance Rejection: resistance touch + bearish close. Buy Watch: resistance break + successful retest. Sell Watch: support break + failed retest. Macro stays separate; signals do not place trades.</p></details>
       </section>
       <PushNotifications now={now} />
       <SignalReview key={interval} audit={audit} rows={history[interval]} interval={interval} now={now} />

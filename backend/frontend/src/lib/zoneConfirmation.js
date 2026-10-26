@@ -280,12 +280,6 @@ export function confirmZones(completed, config = DEFAULT_TECHNICAL_CONFIG) {
       continue;
     }
     confirmation = "None";
-    // Preserve established trigger boundaries while refreshing only volatility
-    // and known opposing targets from the historical prefix available now.
-    // This lets risk filtering see already-known supply/demand without moving
-    // the watched level or reading a later candle.
-    const targetContext = buildZones(completed.slice(0, i), config);
-    if (targetContext && zones) zones = { ...zones, targets: targetContext.targets, atr: targetContext.atr };
     const priorClose = completed[i - 1].close;
     const buy = zones.resistance && !clears(priorClose, zones.buy, true) && clears(candle.close, zones.buy, true);
     const sell = zones.support && !clears(priorClose, zones.sell, false) && clears(candle.close, zones.sell, false);
@@ -337,8 +331,14 @@ export function confirmZones(completed, config = DEFAULT_TECHNICAL_CONFIG) {
   }
   let risk = null;
   if (config.enforceRisk && setup?.confirmedIndex !== null && setup?.confirmedIndex !== undefined && confirmation !== "None") {
-    risk = assessTechnicalRisk({ setup, zones: setup.zones,
-      entry: completed.at(-1)?.close, atr: setup.zones.atr, breakBuffer: setup.zones.breakBuffer, minRewardRisk: config.minRewardRisk });
+    // Refresh opposing target candidates once, only when a completed setup
+    // needs its risk check. Each candidate is derived from candles available
+    // at this point in the replay, so this does not introduce look-ahead.
+    const targetContext = buildZones(completed, config);
+    const riskZones = targetContext ? { ...setup.zones, targets: targetContext.targets,
+      atr: targetContext.atr, breakBuffer: targetContext.breakBuffer } : setup.zones;
+    risk = assessTechnicalRisk({ setup, zones: riskZones,
+      entry: completed.at(-1)?.close, atr: riskZones.atr, breakBuffer: riskZones.breakBuffer, minRewardRisk: config.minRewardRisk });
     if (!risk.qualified) {
       confirmation = "None";
       state = risk.reason.includes("minimum") ? "Risk filter · reward below minimum" : "Risk filter · no structural target";

@@ -33,26 +33,44 @@ export function analyzeMarketStructure(rows = []) {
   }
   const { highs, lows } = swingsAt(rows);
   const trend = classify(highs, lows);
-  const crossings = [];
-  for (const [kind, points] of [["up", highs], ["down", lows]]) {
-    for (const point of points) {
-      for (let index = point.index + PIVOT_RADIUS + 1; index < rows.length; index++) {
-        const prior = rows[index - 1].close;
-        const close = rows[index].close;
-        const crossed = kind === "up" ? prior <= point.price && close > point.price : prior >= point.price && close < point.price;
-        if (!crossed) continue;
-        const knownHighs = highs.filter(item => item.availableAt <= rows[index].time);
-        const knownLows = lows.filter(item => item.availableAt <= rows[index].time);
-        const priorTrend = classify(knownHighs, knownLows);
-        const reversal = priorTrend === "Higher highs + higher lows" && kind === "down"
-          || priorTrend === "Lower highs + lower lows" && kind === "up";
-        crossings.push({ kind, time: rows[index].time, price: point.price, label: reversal ? "CHoCH" : "BOS" });
-        break;
+  // Process candles once. The previous implementation rescanned the whole
+  // remaining series for every pivot and re-filtered every swing at each
+  // crossing; long mobile histories made that work grow quadratically.
+  const availableHighs = [], availableLows = [];
+  const breakableHighs = [], breakableLows = [];
+  let highIndex = 0, lowIndex = 0, latest = null;
+  for (let index = 0; index < rows.length; index++) {
+    while (highIndex < highs.length && highs[highIndex].availableAt <= rows[index].time) {
+      const point = highs[highIndex++];
+      availableHighs.push(point);
+      breakableHighs.push({ ...point, eligibleIndex: point.index + PIVOT_RADIUS + 1, crossed: false });
+    }
+    while (lowIndex < lows.length && lows[lowIndex].availableAt <= rows[index].time) {
+      const point = lows[lowIndex++];
+      availableLows.push(point);
+      breakableLows.push({ ...point, eligibleIndex: point.index + PIVOT_RADIUS + 1, crossed: false });
+    }
+    if (index === 0) continue;
+    const prior = rows[index - 1].close, close = rows[index].close;
+    for (const point of breakableHighs) {
+      if (point.crossed || point.eligibleIndex > index) continue;
+      if (prior <= point.price && close > point.price) {
+        const priorTrend = classify(availableHighs, availableLows);
+        const reversal = priorTrend === "Lower highs + lower lows";
+        latest = { kind: "up", time: rows[index].time, price: point.price, label: reversal ? "CHoCH" : "BOS" };
+        point.crossed = true;
+      }
+    }
+    for (const point of breakableLows) {
+      if (point.crossed || point.eligibleIndex > index) continue;
+      if (prior >= point.price && close < point.price) {
+        const priorTrend = classify(availableHighs, availableLows);
+        const reversal = priorTrend === "Higher highs + higher lows";
+        latest = { kind: "down", time: rows[index].time, price: point.price, label: reversal ? "CHoCH" : "BOS" };
+        point.crossed = true;
       }
     }
   }
-  crossings.sort((a, b) => a.time - b.time);
-  const latest = crossings.at(-1);
   const recent = latest && rows.at(-1).time - latest.time <= RECENT_EVENT_BARS * (rows.at(-1).time - rows.at(-2).time);
   return {
     trend,
