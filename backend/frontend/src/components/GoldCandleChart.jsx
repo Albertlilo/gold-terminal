@@ -4,7 +4,7 @@ import { candleWindow, mergeCandles, candlePriceBounds, sessionCandles } from ".
 import { requestHistory } from "../lib/historyRequest";
 import { accountFetch } from '../lib/accountClient';
 import { clampCount, panWindow, olderPage } from "../lib/chartNavigation";
-import { historicalSupports, historicalResistances } from "../lib/historicalSupport";
+import { historicalSupports, historicalResistances, latestResistanceTest } from "../lib/historicalSupport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://gold-terminal-ufv4.onrender.com";
 const EMPTY_LEVELS = [];
@@ -227,6 +227,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     const contextEnd = Math.min(chartCandles.length - 1, last + 3);
     return historicalResistances(chartCandles.slice(contextStart, contextEnd), 1, completedAsOf, true);
   }, [chartCandles, visibleStart, visibleEnd, completedAsOf]);
+  const recentResistanceTest = useMemo(() => latestResistanceTest(chartCandles, completedAsOf), [chartCandles, completedAsOf]);
   const selected = visible[hover?.index] || visible.at(-1);
   const levels = watchLevels.filter(level => Number.isFinite(level.price) && level.price > 0);
   const bands = zones.filter(zone => Number.isFinite(zone.low) && Number.isFinite(zone.high));
@@ -250,6 +251,11 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
       && zone.high >= min && zone.low <= max
       && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
     .sort((a, b) => b.lastTime - a.lastTime)[0] : null;
+  const latestResistance = [developingResistance, recentResistanceTest]
+    .filter(zone => zone && zone.lastTime >= visibleStart && zone.lastTime <= visibleEnd
+      && zone.high >= min && zone.low <= max
+      && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
+    .sort((a, b) => b.lastTime - a.lastTime)[0] || null;
   const axisWidth = Math.max(90, Math.max(min.toFixed(2).length, max.toFixed(2).length) * 7.5 + 24);
   const plotWidth = Math.max(60, width - axisWidth - 16);
   const height = expanded ? Math.max(440, Math.round(viewportHeight * 0.68)) : width < 560 ? 380 : 440;
@@ -259,7 +265,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const step = plotWidth / Math.max(1, visible.length);
   const x = index => 8 + (index + 0.5) * step;
   const historicalAnnotations = [...visiblePastSupports.map(zone => ({ ...zone, chartRole: "support" })), ...visiblePastResistances.map(zone => ({ ...zone, chartRole: "resistance" })),
-    ...(developingResistance ? [{ ...developingResistance, chartRole: "resistance", developing: true }] : [])]
+    ...(latestResistance ? [{ ...latestResistance, chartRole: "resistance", developing: true }] : [])]
     .map(zone => ({ zone, desiredY: y((zone.low + zone.high) / 2) }))
     .sort((a, b) => a.desiredY - b.desiredY);
   const labelGap = 23;
@@ -373,7 +379,8 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
               ? `${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"} (Confirmed)`
               : zone.reversal?.state === "pending" ? `Role Reversal Pending · ${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"}`
                 : zone.reversal?.state === "invalidated" ? `Role Reversal Invalidated · ${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"}` : null;
-            const fullLabel = zone.developing ? `Potential resistance · ${zone.touches} reaction`
+            const fullLabel = zone.status === "testing" ? "Potential resistance · testing"
+              : zone.developing ? `Potential resistance · ${zone.touches} reaction`
               : reversalLabel ? `${reversalLabel} · ${zone.touches} reactions`
                 : `${zone.chartRole === "support" ? "Past support" : "Past resistance"} · ${zone.touches} reactions · ${statusLabel}`;
             const maxCharacters = Math.max(12, Math.floor((plotWidth - 20) / 5.2));

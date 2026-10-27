@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { historicalSupports, historicalResistances, historicalReactions } from '../src/lib/historicalSupport.js';
+import { historicalSupports, historicalResistances, historicalReactions, latestResistanceTest } from '../src/lib/historicalSupport.js';
 
 const row = (i, low, close = 105) => ({ time: i * 3600, open: close, high: 110, low, close });
 
@@ -41,6 +41,17 @@ test('one recent confirmed swing high can be shown as provisional resistance wit
   assert.equal(developing?.touches, 1);
   assert.equal(developing?.status, 'forming');
   assert.equal(developing?.active, false);
+});
+
+test('the latest completed high is visible as a provisional resistance test before swing confirmation', () => {
+  const candles = Array.from({ length: 18 }, (_, i) => upperRow(i, i === 15 ? 106 : i === 17 ? 108 : 103,
+    i === 17 ? 107.5 : 100));
+  const priorView = latestResistanceTest(candles, candles[16].time);
+  assert.equal(priorView?.high, 106, 'a future candle high must not leak into the earlier view');
+  assert.equal(priorView?.status, 'testing');
+  assert.equal(priorView?.active, false);
+  const latestView = latestResistanceTest(candles);
+  assert.equal(latestView?.high, 108);
 });
 
 test('a broken resistance only becomes support after a completed retest holds', () => {

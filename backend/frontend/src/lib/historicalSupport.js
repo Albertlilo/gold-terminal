@@ -133,3 +133,39 @@ export function historicalSupports(candles, minTouches = 3, asOfTime) {
 export function historicalResistances(candles, minTouches = 3, asOfTime, includeForming = false) {
   return historicalReactions(candles, "resistance", minTouches, asOfTime, includeForming);
 }
+
+// A recent candle high can be shown as a provisional test level before two
+// right-side candles exist to confirm a swing. This is chart context only; it
+// is never an active zone or a technical signal.
+export function latestResistanceTest(candles, asOfTime = candles?.at(-1)?.time ?? Infinity, lookback = 18) {
+  if (!Array.isArray(candles)) return null;
+  const completed = candles.filter(candle => candle.time <= asOfTime);
+  const recent = completed.slice(-lookback);
+  if (recent.length < 5) return null;
+  const latest = recent.at(-1);
+  const high = Math.max(...recent.map(candle => candle.high));
+  const highIndex = recent.findLastIndex(candle => candle.high === high);
+  const highCandle = recent[highIndex];
+  const avgRange = recent.slice(-14).reduce((sum, candle) => sum + candle.high - candle.low, 0) / Math.min(14, recent.length);
+  const ageBars = recent.length - 1 - highIndex;
+  if (ageBars > Math.floor(lookback * 0.6)) return null;
+  if (high - latest.close > Math.max(avgRange * 3.5, high * 0.002)) return null;
+  const width = Math.max(avgRange * 0.2, high * 0.00025);
+  const reactions = recent.filter(candle => Math.abs(candle.high - high) <= Math.max(width, avgRange * 0.2)).length;
+  return {
+    id: `resistance-test-${highCandle.time}`,
+    role: "resistance",
+    label: "Potential resistance · testing",
+    displayLabel: "Potential resistance · testing",
+    low: high - width,
+    high,
+    firstTime: highCandle.time,
+    lastTime: highCandle.time,
+    identifiedAt: latest.time,
+    touches: reactions,
+    status: "testing",
+    active: false,
+    color: "#ef7b7b",
+    reversal: null,
+  };
+}
