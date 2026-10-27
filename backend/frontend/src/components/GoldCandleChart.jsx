@@ -4,7 +4,7 @@ import { candleWindow, mergeCandles, candlePriceBounds, sessionCandles } from ".
 import { requestHistory } from "../lib/historyRequest";
 import { accountFetch } from '../lib/accountClient';
 import { clampCount, panWindow, olderPage } from "../lib/chartNavigation";
-import { historicalSupports } from "../lib/historicalSupport";
+import { historicalSupports, historicalResistances } from "../lib/historicalSupport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://gold-terminal-ufv4.onrender.com";
 const EMPTY_LEVELS = [];
@@ -12,7 +12,7 @@ const stamp = time => new Date(time * 1000).toLocaleString("en-GB", {
   timeZone: "UTC", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
 });
 
-export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange, onAuditChange, initialCandles = EMPTY_LEVELS, initialLoadPending = false, onHistoryStatus }) {
+export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange, onAuditChange, initialCandles = EMPTY_LEVELS, initialLoadPending = false, onHistoryStatus, now = 0 }) {
   const [localInterval, setIntervalValue] = useState("5min");
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
@@ -35,15 +35,16 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EM
           </select>
         </label>
       </div>
-      <CandleView key={interval} interval={interval} expanded={expanded} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} onAuditChange={onAuditChange} initialCandles={initialCandles} initialLoadPending={initialLoadPending} onHistoryStatus={onHistoryStatus} />
+      <CandleView key={interval} interval={interval} expanded={expanded} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} onAuditChange={onAuditChange} initialCandles={initialCandles} initialLoadPending={initialLoadPending} onHistoryStatus={onHistoryStatus} now={now} />
     </section>
   );
 }
 
-function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, onAuditChange, initialCandles, initialLoadPending, onHistoryStatus }) {
+function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, onAuditChange, initialCandles, initialLoadPending, onHistoryStatus, now }) {
   const [magnify, setMagnify] = useState(true);
   const [fitLevels, setFitLevels] = useState(false);
   const [showPastSupport, setShowPastSupport] = useState(true);
+  const [showPastResistance, setShowPastResistance] = useState(true);
   const [candles, setCandles] = useState(initialCandles);
   const [status, setStatus] = useState(initialCandles.length ? "Showing saved candles." : "Loading saved candles…");
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -198,6 +199,9 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const visible = useMemo(() => candleWindow(chartCandles, count, endTime), [chartCandles, count, endTime]);
   const visibleStart = visible[0]?.time;
   const visibleEnd = visible.at(-1)?.time;
+  const intervalSeconds = interval === "5min" ? 300 : interval === "1day" ? 86400 : 3600;
+  const completedAsOf = visibleEnd === undefined ? 0 : Math.min(visibleEnd,
+    Math.floor(now / 1000 / intervalSeconds) * intervalSeconds - intervalSeconds);
   // The final saved candle may still be forming; historical markers use older rows.
   const pastSupports = useMemo(() => {
     if (visibleStart === undefined || visibleEnd === undefined) return [];
@@ -205,8 +209,16 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     const last = chartCandles.findLastIndex(row => row.time <= visibleEnd);
     const contextStart = Math.max(0, first - 40);
     const contextEnd = Math.min(chartCandles.length - 1, last + 3);
-    return historicalSupports(chartCandles.slice(contextStart, contextEnd));
-  }, [chartCandles, visibleStart, visibleEnd]);
+    return historicalSupports(chartCandles.slice(contextStart, contextEnd), 3, completedAsOf);
+  }, [chartCandles, visibleStart, visibleEnd, completedAsOf]);
+  const pastResistances = useMemo(() => {
+    if (visibleStart === undefined || visibleEnd === undefined) return [];
+    const first = chartCandles.findIndex(row => row.time >= visibleStart);
+    const last = chartCandles.findLastIndex(row => row.time <= visibleEnd);
+    const contextStart = Math.max(0, first - 40);
+    const contextEnd = Math.min(chartCandles.length - 1, last + 3);
+    return historicalResistances(chartCandles.slice(contextStart, contextEnd), 3, completedAsOf);
+  }, [chartCandles, visibleStart, visibleEnd, completedAsOf]);
   const selected = visible[hover?.index] || visible.at(-1);
   const levels = watchLevels.filter(level => Number.isFinite(level.price) && level.price > 0);
   const bands = zones.filter(zone => Number.isFinite(zone.low) && Number.isFinite(zone.high));
@@ -222,6 +234,9 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const visiblePastSupports = showPastSupport && visible.length ? pastSupports.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
     && zone.high >= min && zone.low <= max && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
     .sort((a, b) => b.touches - a.touches || b.lastTime - a.lastTime).slice(0, 4) : [];
+  const visiblePastResistances = showPastResistance && visible.length ? pastResistances.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
+    && zone.high >= min && zone.low <= max && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
+    .sort((a, b) => b.touches - a.touches || b.lastTime - a.lastTime).slice(0, 4) : [];
   const axisWidth = Math.max(90, Math.max(min.toFixed(2).length, max.toFixed(2).length) * 7.5 + 24);
   const plotWidth = Math.max(60, width - axisWidth - 16);
   const height = expanded ? Math.max(440, Math.round(viewportHeight * 0.68)) : width < 560 ? 380 : 440;
@@ -230,6 +245,15 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const y = price => bottom - ((price - min) / (max - min)) * plotHeight;
   const step = plotWidth / Math.max(1, visible.length);
   const x = index => 8 + (index + 0.5) * step;
+  const historicalAnnotations = [...visiblePastSupports.map(zone => ({ ...zone, chartRole: "support" })), ...visiblePastResistances.map(zone => ({ ...zone, chartRole: "resistance" }))]
+    .map(zone => ({ zone, desiredY: y((zone.low + zone.high) / 2) }))
+    .sort((a, b) => a.desiredY - b.desiredY);
+  const labelGap = 30;
+  const positionedHistoricalAnnotations = historicalAnnotations.reduce((placed, item) => {
+    const previousY = placed.at(-1)?.labelY ?? top + 14 - labelGap;
+    return [...placed, { ...item, labelY: Math.max(item.desiredY, previousY + labelGap) }];
+  }, []);
+  const labelOverflow = Math.max(0, (positionedHistoricalAnnotations.at(-1)?.labelY ?? bottom - 20) - (bottom - 20));
   const crossPrice = hover ? Math.max(min, Math.min(max, hover.price)) : null;
 
   function moveBy(amount) {
@@ -296,6 +320,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
         <label><input type="checkbox" checked={magnify} onChange={event => setMagnify(event.target.checked)} />Auto-fit visible prices</label>
         {(levels.length > 0 || bands.length > 0) && <label><input type="checkbox" checked={fitLevels} onChange={event => setFitLevels(event.target.checked)} />Include watch levels &amp; zones</label>}
         <label><input type="checkbox" checked={showPastSupport} onChange={event => setShowPastSupport(event.target.checked)} />Show past support reactions</label>
+        <label><input type="checkbox" checked={showPastResistance} onChange={event => setShowPastResistance(event.target.checked)} />Show past resistance reactions</label>
       </div>
       <div className="candle-ohlc" aria-live="off">
         {selected ? <><time>{stamp(selected.time)} UTC</time><span>Open <strong>{selected.open.toFixed(2)}</strong></span><span>High <strong>{selected.high.toFixed(2)}</strong></span><span>Low <strong>{selected.low.toFixed(2)}</strong></span><span>Close <strong>{selected.close.toFixed(2)}</strong></span></> : "Waiting for historical prices…"}
@@ -321,14 +346,28 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
             <rect x="8" y={y(Math.min(max, zone.high))} width={plotWidth} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={zone.color} fillOpacity={zone.active === false ? "0.035" : "0.12"} stroke={zone.color} strokeOpacity={zone.active === false ? "0.3" : "0.55"} strokeDasharray={zone.active === false ? "4 5" : undefined} />
             <text x="12" y={Math.min(bottom - 5, y(Math.min(max, zone.high)) + 13)} fill={zone.color} stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize={width < 420 ? "10" : "12"}>{zone.displayLabel || zone.label}</text>
           </g>)}
-          {visiblePastSupports.map(zone => {
+          {positionedHistoricalAnnotations.map(({ zone, desiredY, labelY: rawLabelY }) => {
+            const labelY = rawLabelY - labelOverflow;
             const first = Math.max(0, visible.findIndex(row => row.time >= zone.firstTime));
             const last = visible.findLastIndex(row => row.time <= zone.lastTime);
             const start = Math.max(8, x(first) - step / 2);
             const end = Math.min(plotWidth + 8, x(Math.min(visible.length - 1, last + 4)) + step / 2);
+            const color = zone.reversal?.state === "confirmed"
+              ? zone.chartRole === "resistance" ? "#477f60" : "#8a4e4e"
+              : zone.chartRole === "support" ? zone.active ? "#70d69c" : "#477f60" : zone.active ? "#ef7b7b" : "#8a4e4e";
+            const statusLabel = zone.status === "role-reversed" ? "role reversed"
+              : zone.status === "broken" ? "broken · retest pending"
+                : zone.status === "invalidated" ? "reversal invalid" : zone.status;
+            const fullLabel = `${zone.chartRole === "support" ? "Past support" : "Past resistance"} · ${zone.touches} reactions · ${statusLabel}`;
+            const maxCharacters = Math.max(12, Math.floor((plotWidth - 20) / 5.2));
+            const label = fullLabel.length > maxCharacters ? `${fullLabel.slice(0, maxCharacters - 1)}…` : fullLabel;
+            const labelWidth = Math.min(plotWidth - 12, label.length * 5.2 + 10);
             return <g key={zone.id}>
-              <rect x={start} y={y(Math.min(max, zone.high))} width={Math.max(1, end - start)} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill="#70d69c" fillOpacity="0.07" stroke="#70d69c" strokeOpacity="0.5" strokeDasharray="3 4" />
-              <text x={start + 3} y={Math.min(bottom - 5, y(Math.min(max, zone.high)) + 13)} fill="#8faf95" stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize="11">Past support · {zone.touches} reactions</text>
+              <rect x={start} y={y(Math.min(max, zone.high))} width={Math.max(1, end - start)} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={color} fillOpacity="0.07" stroke={color} strokeOpacity="0.5" strokeDasharray="3 4" />
+              {zone.reversal && <line x1={Math.max(start, end - 120)} x2={end} y1={desiredY} y2={desiredY} stroke={color} strokeOpacity="0.45" strokeDasharray="2 3" />}
+              <rect x={Math.max(10, plotWidth - labelWidth)} y={labelY - 12} width={labelWidth} height="17" rx="3" fill="#111" fillOpacity="0.92" />
+              <text x={Math.max(14, plotWidth - labelWidth + 4)} y={labelY} fill={color} fontSize="9">{label}</text>
+              {zone.reversal?.state && <text x={Math.max(14, plotWidth - 211)} y={Math.min(bottom - 2, labelY + 13)} fill={color} fontSize="9">{zone.reversal.label}</text>}
             </g>;
           })}
           {visible.map((candle, index) => {
@@ -358,7 +397,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
       <p className="candle-hint">{visible.length} candles shown · UTC · Drag to pan; pinch or scroll to zoom. Select a candle to inspect its prices.</p>
       <details className="chart-notes">
         <summary>Chart and data notes</summary>
-        {showPastSupport && <p className="candle-hint">Past support markers show earlier price reactions only. They are references, not current support or signal triggers.</p>}
+        {(showPastSupport || showPastResistance) && <p className="candle-hint">Past reaction zones use completed candles. Broken zones only become the opposite role after a completed retest holds; pending or invalidated reversals remain historical references, not trade signals.</p>}
         {hiddenClosed > 0 && <p className="candle-hint">{hiddenClosed} candle{hiddenClosed === 1 ? "" : "s"} from scheduled closed hours are hidden in this intraday view.</p>}
         {visible.length > 0 && quiet && <p className="candle-hint">Prices cover a narrow range. Auto-fit enlarges the view without changing any prices.</p>}
         <p className="candle-hint">Analysis uses completed candles; the newest candle may still be forming. Older history depends on provider coverage.</p>

@@ -183,7 +183,7 @@ function MarketsPage({
 
       {/* SAVED CANDLE HISTORY */}
 
-      <GoldCandleChart interval={interval} onIntervalChange={setInterval} />
+      <GoldCandleChart interval={interval} onIntervalChange={setInterval} now={currentTime?.getTime?.() ?? 0} />
 
       {/* CROSS-MARKET CONFIRMATION */}
 

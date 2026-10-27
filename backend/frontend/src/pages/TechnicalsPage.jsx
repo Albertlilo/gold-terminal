@@ -118,7 +118,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <label className="watch-toggle"><input type="checkbox" checked={showZones} onChange={event => setShowZones(event.target.checked)} />Show support / resistance zones</label>
         {chartPreviousZones.length > 0 && <label className="watch-toggle"><input type="checkbox" checked={showPreviousZones} onChange={event => setShowPreviousZones(event.target.checked)} />Show previous zones (inactive)</label>}
         <TechnicalChartBoundary key={`${chartInterval}-${chartRetry}`} onRetry={() => setChartRetry(value => value + 1)}>
-          <GoldCandleChart zones={showZones ? [...chartZones, ...(showPreviousZones ? chartPreviousZones.map(zone => ({ ...zone, label: `${zone.label} · inactive` })) : [])] : []} interval={chartInterval} initialCandles={history[chartInterval] || []} initialLoadPending={updates[chartInterval]?.status === "loading"} onIntervalChange={setChartInterval} onCandlesChange={receiveChartCandles} onHistoryStatus={receiveChartStatus} onAuditChange={receiveAudit} watchLevels={showWatchLevels ? chartAnalysis?.levels || [] : []} />
+          <GoldCandleChart zones={showZones ? [...chartZones, ...(showPreviousZones ? chartPreviousZones.map(zone => ({ ...zone, label: `${zone.label} · inactive` })) : [])] : []} interval={chartInterval} initialCandles={history[chartInterval] || []} initialLoadPending={updates[chartInterval]?.status === "loading"} onIntervalChange={setChartInterval} onCandlesChange={receiveChartCandles} onHistoryStatus={receiveChartStatus} onAuditChange={receiveAudit} watchLevels={showWatchLevels ? chartAnalysis?.levels || [] : []} now={now} />
         </TechnicalChartBoundary>
       </div>
       <TechnicalRiskPanel risk={analysis.risk} />
