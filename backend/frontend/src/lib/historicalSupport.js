@@ -49,7 +49,7 @@ function classifyRoleReversal(candles, zone, role, fromIndex, width) {
   return { status, reversal };
 }
 
-export function historicalReactions(candles, role, minTouches = 3, asOfTime = candles?.at(-1)?.time ?? Infinity) {
+export function historicalReactions(candles, role, minTouches = 3, asOfTime = candles?.at(-1)?.time ?? Infinity, includeForming = false) {
   if (!Array.isArray(candles) || candles.length < 15 || !ROLE_STYLES[role]) return [];
   const completed = candles.filter(candle => candle.time <= asOfTime);
   if (completed.length < 15) return [];
@@ -98,7 +98,8 @@ export function historicalReactions(candles, role, minTouches = 3, asOfTime = ca
     const latest = item.points.at(-1);
     const lifecycle = classifyRoleReversal(completed, zone, role, identified.confirmedIndex + 1, item.width);
     const age = completed.length - 1 - latest.confirmedIndex;
-    const status = lifecycle.status === "active" && age > Math.max(30, candles.length * 0.2) ? "inactive" : lifecycle.status;
+    const status = lifecycle.status === "active" && age > Math.max(30, candles.length * 0.2) ? "inactive"
+      : lifecycle.status === "active" && includeForming && item.points.length < 3 ? "forming" : lifecycle.status;
     const style = ROLE_STYLES[role];
     return {
       id: `past-${role}-${first.time}`,
@@ -129,6 +130,6 @@ export function historicalSupports(candles, minTouches = 3, asOfTime) {
   }));
 }
 
-export function historicalResistances(candles, minTouches = 3, asOfTime) {
-  return historicalReactions(candles, "resistance", minTouches, asOfTime);
+export function historicalResistances(candles, minTouches = 3, asOfTime, includeForming = false) {
+  return historicalReactions(candles, "resistance", minTouches, asOfTime, includeForming);
 }

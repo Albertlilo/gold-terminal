@@ -43,8 +43,8 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EM
 function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, onAuditChange, initialCandles, initialLoadPending, onHistoryStatus, now }) {
   const [magnify, setMagnify] = useState(true);
   const [fitLevels, setFitLevels] = useState(false);
-  const [showPastSupport, setShowPastSupport] = useState(true);
-  const [showPastResistance, setShowPastResistance] = useState(true);
+  const [showPastSupport, setShowPastSupport] = useState(false);
+  const [showPastResistance, setShowPastResistance] = useState(false);
   const [candles, setCandles] = useState(initialCandles);
   const [status, setStatus] = useState(initialCandles.length ? "Showing saved candles." : "Loading saved candles…");
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -219,6 +219,14 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     const contextEnd = Math.min(chartCandles.length - 1, last + 3);
     return historicalResistances(chartCandles.slice(contextStart, contextEnd), 3, completedAsOf);
   }, [chartCandles, visibleStart, visibleEnd, completedAsOf]);
+  const developingResistances = useMemo(() => {
+    if (visibleStart === undefined || visibleEnd === undefined) return [];
+    const first = chartCandles.findIndex(row => row.time >= visibleStart);
+    const last = chartCandles.findLastIndex(row => row.time <= visibleEnd);
+    const contextStart = Math.max(0, first - 40);
+    const contextEnd = Math.min(chartCandles.length - 1, last + 3);
+    return historicalResistances(chartCandles.slice(contextStart, contextEnd), 1, completedAsOf, true);
+  }, [chartCandles, visibleStart, visibleEnd, completedAsOf]);
   const selected = visible[hover?.index] || visible.at(-1);
   const levels = watchLevels.filter(level => Number.isFinite(level.price) && level.price > 0);
   const bands = zones.filter(zone => Number.isFinite(zone.low) && Number.isFinite(zone.high));
@@ -233,10 +241,15 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const { min, max, quiet } = candlePriceBounds(low, high, magnify);
   const visiblePastSupports = showPastSupport && visible.length ? pastSupports.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
     && zone.high >= min && zone.low <= max && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
-    .sort((a, b) => b.touches - a.touches || b.lastTime - a.lastTime).slice(0, 4) : [];
+    .sort((a, b) => Math.abs((a.low + a.high) / 2 - (visible.at(-1)?.close ?? 0)) - Math.abs((b.low + b.high) / 2 - (visible.at(-1)?.close ?? 0)) || b.lastTime - a.lastTime).slice(0, 1) : [];
   const visiblePastResistances = showPastResistance && visible.length ? pastResistances.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
     && zone.high >= min && zone.low <= max && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
-    .sort((a, b) => b.touches - a.touches || b.lastTime - a.lastTime).slice(0, 4) : [];
+    .sort((a, b) => Math.abs((a.low + a.high) / 2 - (visible.at(-1)?.close ?? 0)) - Math.abs((b.low + b.high) / 2 - (visible.at(-1)?.close ?? 0)) || b.lastTime - a.lastTime).slice(0, 1) : [];
+  const developingResistance = visible.length ? developingResistances
+    .filter(zone => zone.status === "forming" && zone.lastTime >= visibleStart && zone.lastTime <= visibleEnd
+      && zone.high >= min && zone.low <= max
+      && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
+    .sort((a, b) => b.lastTime - a.lastTime)[0] : null;
   const axisWidth = Math.max(90, Math.max(min.toFixed(2).length, max.toFixed(2).length) * 7.5 + 24);
   const plotWidth = Math.max(60, width - axisWidth - 16);
   const height = expanded ? Math.max(440, Math.round(viewportHeight * 0.68)) : width < 560 ? 380 : 440;
@@ -245,10 +258,11 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const y = price => bottom - ((price - min) / (max - min)) * plotHeight;
   const step = plotWidth / Math.max(1, visible.length);
   const x = index => 8 + (index + 0.5) * step;
-  const historicalAnnotations = [...visiblePastSupports.map(zone => ({ ...zone, chartRole: "support" })), ...visiblePastResistances.map(zone => ({ ...zone, chartRole: "resistance" }))]
+  const historicalAnnotations = [...visiblePastSupports.map(zone => ({ ...zone, chartRole: "support" })), ...visiblePastResistances.map(zone => ({ ...zone, chartRole: "resistance" })),
+    ...(developingResistance ? [{ ...developingResistance, chartRole: "resistance", developing: true }] : [])]
     .map(zone => ({ zone, desiredY: y((zone.low + zone.high) / 2) }))
     .sort((a, b) => a.desiredY - b.desiredY);
-  const labelGap = 30;
+  const labelGap = 23;
   const positionedHistoricalAnnotations = historicalAnnotations.reduce((placed, item) => {
     const previousY = placed.at(-1)?.labelY ?? top + 14 - labelGap;
     return [...placed, { ...item, labelY: Math.max(item.desiredY, previousY + labelGap) }];
@@ -319,8 +333,8 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
       <div className="candle-scale-controls">
         <label><input type="checkbox" checked={magnify} onChange={event => setMagnify(event.target.checked)} />Auto-fit visible prices</label>
         {(levels.length > 0 || bands.length > 0) && <label><input type="checkbox" checked={fitLevels} onChange={event => setFitLevels(event.target.checked)} />Include watch levels &amp; zones</label>}
-        <label><input type="checkbox" checked={showPastSupport} onChange={event => setShowPastSupport(event.target.checked)} />Show past support reactions</label>
-        <label><input type="checkbox" checked={showPastResistance} onChange={event => setShowPastResistance(event.target.checked)} />Show past resistance reactions</label>
+        <label><input type="checkbox" checked={showPastSupport} onChange={event => setShowPastSupport(event.target.checked)} />Past support reactions</label>
+        <label><input type="checkbox" checked={showPastResistance} onChange={event => setShowPastResistance(event.target.checked)} />Past resistance reactions</label>
       </div>
       <div className="candle-ohlc" aria-live="off">
         {selected ? <><time>{stamp(selected.time)} UTC</time><span>Open <strong>{selected.open.toFixed(2)}</strong></span><span>High <strong>{selected.high.toFixed(2)}</strong></span><span>Low <strong>{selected.low.toFixed(2)}</strong></span><span>Close <strong>{selected.close.toFixed(2)}</strong></span></> : "Waiting for historical prices…"}
@@ -352,22 +366,28 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
             const last = visible.findLastIndex(row => row.time <= zone.lastTime);
             const start = Math.max(8, x(first) - step / 2);
             const end = Math.min(plotWidth + 8, x(Math.min(visible.length - 1, last + 4)) + step / 2);
-            const color = zone.reversal?.state === "confirmed"
-              ? zone.chartRole === "resistance" ? "#477f60" : "#8a4e4e"
-              : zone.chartRole === "support" ? zone.active ? "#70d69c" : "#477f60" : zone.active ? "#ef7b7b" : "#8a4e4e";
             const statusLabel = zone.status === "role-reversed" ? "role reversed"
               : zone.status === "broken" ? "broken · retest pending"
                 : zone.status === "invalidated" ? "reversal invalid" : zone.status;
-            const fullLabel = `${zone.chartRole === "support" ? "Past support" : "Past resistance"} · ${zone.touches} reactions · ${statusLabel}`;
+            const reversalLabel = zone.reversal?.state === "confirmed"
+              ? `${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"} (Confirmed)`
+              : zone.reversal?.state === "pending" ? `Role Reversal Pending · ${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"}`
+                : zone.reversal?.state === "invalidated" ? `Role Reversal Invalidated · ${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"}` : null;
+            const fullLabel = zone.developing ? `Potential resistance · ${zone.touches} reaction`
+              : reversalLabel ? `${reversalLabel} · ${zone.touches} reactions`
+                : `${zone.chartRole === "support" ? "Past support" : "Past resistance"} · ${zone.touches} reactions · ${statusLabel}`;
             const maxCharacters = Math.max(12, Math.floor((plotWidth - 20) / 5.2));
             const label = fullLabel.length > maxCharacters ? `${fullLabel.slice(0, maxCharacters - 1)}…` : fullLabel;
             const labelWidth = Math.min(plotWidth - 12, label.length * 5.2 + 10);
+            const color = zone.developing ? "#ef7b7b" : zone.reversal?.state === "confirmed"
+              ? zone.chartRole === "resistance" ? "#477f60" : "#8a4e4e"
+              : zone.chartRole === "support" ? zone.active ? "#70d69c" : "#477f60" : zone.active ? "#ef7b7b" : "#8a4e4e";
             return <g key={zone.id}>
-              <rect x={start} y={y(Math.min(max, zone.high))} width={Math.max(1, end - start)} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={color} fillOpacity="0.07" stroke={color} strokeOpacity="0.5" strokeDasharray="3 4" />
+              <rect x={start} y={y(Math.min(max, zone.high))} width={Math.max(1, (zone.developing ? plotWidth + 8 : end) - start)} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={color} fillOpacity={zone.developing ? "0.035" : "0.07"} stroke={color} strokeOpacity={zone.developing ? "0.75" : "0.5"} strokeDasharray={zone.developing ? "5 4" : "3 4"} />
               {zone.reversal && <line x1={Math.max(start, end - 120)} x2={end} y1={desiredY} y2={desiredY} stroke={color} strokeOpacity="0.45" strokeDasharray="2 3" />}
               <rect x={Math.max(10, plotWidth - labelWidth)} y={labelY - 12} width={labelWidth} height="17" rx="3" fill="#111" fillOpacity="0.92" />
               <text x={Math.max(14, plotWidth - labelWidth + 4)} y={labelY} fill={color} fontSize="9">{label}</text>
-              {zone.reversal?.state && <text x={Math.max(14, plotWidth - 211)} y={Math.min(bottom - 2, labelY + 13)} fill={color} fontSize="9">{zone.reversal.label}</text>}
+              <title>{zone.developing ? `${fullLabel} · forming` : fullLabel}</title>
             </g>;
           })}
           {visible.map((candle, index) => {

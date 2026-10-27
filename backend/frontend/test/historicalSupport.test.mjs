@@ -33,6 +33,16 @@ test('repeated confirmed swing highs become historical resistance references', (
   assert.equal(zone.firstTime, candles[18].time, 'the zone begins when the third reaction is confirmed');
 });
 
+test('one recent confirmed swing high can be shown as provisional resistance without becoming an active zone', () => {
+  const candles = Array.from({ length: 36 }, (_, i) => upperRow(i, i === 28 ? 106 : 103,
+    i === 29 ? 104 : 100));
+  assert.equal(historicalResistances(candles).some(zone => zone.high === 106), false);
+  const developing = historicalResistances(candles, 1, candles.at(-1).time, true).find(zone => zone.high === 106);
+  assert.equal(developing?.touches, 1);
+  assert.equal(developing?.status, 'forming');
+  assert.equal(developing?.active, false);
+});
+
 test('a broken resistance only becomes support after a completed retest holds', () => {
   const candles = Array.from({ length: 20 }, (_, i) => upperRow(i, [4, 10, 16].includes(i) ? 106 : 103,
     [5, 11, 17].includes(i) ? 104 : 100));
