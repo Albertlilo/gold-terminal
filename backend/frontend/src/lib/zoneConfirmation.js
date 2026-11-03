@@ -8,7 +8,7 @@ import { historicalSupports } from "./historicalSupport.js";
 import { analyzeMarketStructure } from "./marketStructure.js";
 import { assessTechnicalRisk } from "./technicalRisk.js";
 
-export const RULE_VERSION = "zones-structure-risk-v18";
+export const RULE_VERSION = "zones-structure-risk-v19";
 export const NOISE_PERCENT = 0.05;
 export const DEFAULT_TECHNICAL_CONFIG = Object.freeze({ breakAtrMultiplier: 0.2, minimumBreakPercent: 0.0005, minRewardRisk: 1.5, enforceRisk: true });
 const SWING_RADIUS = 2;
@@ -34,8 +34,9 @@ function beginReaction(type, index, candle, zones) {
   };
 }
 
-export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG) {
-  const rows = previous.slice(-STRUCTURE_LOOKBACK);
+export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG, endExclusive = previous.length) {
+  const end = Math.min(previous.length, Math.max(0, endExclusive));
+  const rows = previous.slice(Math.max(0, end - STRUCTURE_LOOKBACK), end);
   if (rows.length < ZONE_LOOKBACK) return null;
   const recent = rows.slice(-ZONE_LOOKBACK);
   // True range includes gaps as well as each candle's high/low distance.
@@ -49,7 +50,9 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG) {
     return sum + Math.max(row.high - row.low, Math.abs(row.high - priorClose), Math.abs(row.low - priorClose));
   }, 0) / atrRows.length;
   const reference = rows.at(-1).close;
-  const mergeDistance = Math.max(averageRange * 0.35, reference * 0.0004);
+  // Cluster only price levels within a fraction of the current ATR. The small
+  // price floor prevents a near-zero tolerance when history is exceptionally quiet.
+  const mergeDistance = Math.max(atr * 0.35, reference * 0.0004);
   const points = [];
   for (let i = SWING_RADIUS; i < rows.length - SWING_RADIUS; i++) {
     const neighbours = rows.slice(i - SWING_RADIUS, i + SWING_RADIUS + 1);
@@ -57,26 +60,50 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG) {
     if (neighbours.every(row => rows[i].high >= row.high)) points.push({ price: rows[i].high, index: i, time: rows[i].time, role: "resistance" });
   }
   const clusters = [];
+  const latestClusterByRole = new Map();
   for (const point of points.sort((a, b) => a.price - b.price)) {
-    let cluster = clusters.find(item => item.role === point.role && Math.abs(item.center - point.price) <= mergeDistance);
-    if (!cluster) { cluster = { values: [], points: [], center: point.price, role: point.role }; clusters.push(cluster); }
-    cluster.values.push(point.price);
+    let cluster = latestClusterByRole.get(point.role);
+    if (!cluster || Math.abs(cluster.center - point.price) > mergeDistance) {
+      cluster = { sum: 0, count: 0, points: [], center: point.price, role: point.role };
+      clusters.push(cluster);
+      latestClusterByRole.set(point.role, cluster);
+    }
+    cluster.sum += point.price;
+    cluster.count++;
     cluster.points.push(point);
-    cluster.center = cluster.values.reduce((sum, value) => sum + value, 0) / cluster.values.length;
+    cluster.center = cluster.sum / cluster.count;
   }
   const assessed = clusters.map(cluster => {
     const separated = [];
+    const reactionStrengths = [];
     for (const point of cluster.points.sort((a, b) => a.index - b.index)) {
-      const recovery = rows.slice(point.index + 1, point.index + SWING_RADIUS + 1);
+      const recovery = rows.slice(point.index + 1, Math.min(rows.length, point.index + SWING_RADIUS + 1));
       const departure = Math.max(averageRange * 0.25, reference * 0.0001);
       const reacted = recovery.some(row => cluster.role === "support"
         ? row.close >= point.price + departure : row.close <= point.price - departure);
-      if (reacted && (!separated.length || point.index - separated.at(-1).index >= MIN_TOUCH_SEPARATION)) separated.push(point);
+      if (reacted && (!separated.length || point.index - separated.at(-1).index >= MIN_TOUCH_SEPARATION)) {
+        separated.push(point);
+        const excursion = recovery.reduce((best, row) => Math.max(best, cluster.role === "support"
+          ? row.high - point.price : point.price - row.low), 0);
+        reactionStrengths.push(Math.max(0, excursion) / Math.max(atr, Number.EPSILON));
+      }
     }
-    return { ...cluster, touches: separated.length, lastTouch: separated.at(-1)?.time ?? null,
-      lastTouchIndex: separated.at(-1)?.index ?? null };
+    const touches = separated.length;
+    const lastTouchIndex = separated.at(-1)?.index ?? null;
+    const recencyBars = lastTouchIndex === null ? rows.length : rows.length - 1 - lastTouchIndex;
+    const reactionStrength = reactionStrengths.length
+      ? reactionStrengths.reduce((sum, value) => sum + value, 0) / reactionStrengths.length : 0;
+    const recency = Math.exp(-recencyBars / 60);
+    const touchScore = Math.min(1, touches / 5);
+    const strengthScore = Math.min(1, reactionStrength);
+    const qualityScore = Math.round((touchScore * 0.45 + strengthScore * 0.35 + recency * 0.2) * 100);
+    const breakDistance = Math.max(atr * config.breakAtrMultiplier, reference * config.minimumBreakPercent);
+    const broken = lastTouchIndex !== null && rows.some((row, index) => index > lastTouchIndex
+      && (cluster.role === "support" ? row.close < cluster.center - breakDistance : row.close > cluster.center + breakDistance));
+    return { ...cluster, touches, lastTouch: separated.at(-1)?.time ?? null, lastTouchIndex,
+      reactionStrength: Number(reactionStrength.toFixed(2)), recencyBars, qualityScore, broken };
   });
-  const confirmed = assessed.filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES);
+  const confirmed = assessed.filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES && !cluster.broken);
   const minimumGap = Math.max(averageRange * 0.2, reference * NOISE_PERCENT / 100);
   const recentLow = Math.min(...recent.map(row => row.low));
   const recentHigh = Math.max(...recent.map(row => row.high));
@@ -95,15 +122,16 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG) {
         && row.close > cluster.center + minimumGap && row.close > row.open)
       && !rows.some((row, index) => index > cluster.lastTouchIndex
         && row.close < cluster.center - minimumGap))
-    .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];
+    .sort((a, b) => b.qualityScore - a.qualityScore || a.center - b.center)[0];
   // If the recent candles have not formed a floor, check older, independently
   // tested lows near the current range. Broken or distant history stays inactive.
-  const historicalFloor = !supportCandidate && historicalSupports(previous.slice(-500), 2)
+  const asOfHistory = previous.slice(Math.max(0, end - 500), end);
+  const historicalFloor = !supportCandidate && historicalSupports(asOfHistory, 2)
     .filter(zone => zone.high < reference - minimumGap
       && Math.abs(zone.low - recentLow) <= Math.max(averageRange * 1.5, reference * 0.001)
       && (zone.touches >= MIN_ZONE_TOUCHES || recent.slice(-3).some(row => row.low <= zone.high + minimumGap
         && row.close > zone.high && row.close > row.open))
-      && !previous.some(row => row.time > zone.lastTime && row.close < zone.low - minimumGap))
+      && !asOfHistory.some(row => row.time > zone.lastTime && row.close < zone.low - minimumGap))
     .sort((a, b) => Math.abs(a.low - recentLow) - Math.abs(b.low - recentLow) || b.touches - a.touches)[0];
   const formingSupportCandidate = !supportCandidate && !historicalFloor
     ? assessed.filter(cluster => cluster.role === "support" && cluster.touches >= 1
@@ -114,11 +142,11 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG) {
         && row.close > cluster.center + minimumGap && row.close > row.open)
       && !rows.some((row, index) => index > cluster.lastTouchIndex
         && row.close < cluster.center - minimumGap))
-      .sort((a, b) => a.center - b.center || b.touches - a.touches)[0]
+    .sort((a, b) => b.qualityScore - a.qualityScore || a.center - b.center)[0]
     : null;
   const resistanceCandidate = confirmed.filter(cluster => cluster.role === "resistance"
       && cluster.center > reference + minimumGap && cluster.center <= recentHigh + activeMargin)
-    .sort((a, b) => a.center - b.center || b.touches - a.touches)[0];
+    .sort((a, b) => b.qualityScore - a.qualityScore || a.center - b.center)[0];
   if (!supportCandidate && !historicalFloor && !formingSupportCandidate && !resistanceCandidate) return null;
   const baseWidth = Math.max(averageRange * 0.2, reference * 0.00025);
   const supportPrice = supportCandidate?.center ?? historicalFloor?.low;
@@ -130,14 +158,17 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG) {
   const identifiedAt = rows.at(-1).time;
   const support = supportPrice ? { label: "Support zone", low: supportPrice, high: supportPrice + width,
     color: "#70d69c", active: true, touches: supportCandidate?.touches ?? historicalFloor.touches,
+    qualityScore: supportCandidate?.qualityScore ?? null, reactionStrength: supportCandidate?.reactionStrength ?? null,
     lastTouch: supportCandidate?.lastTouch ?? historicalFloor.lastTime,
     source: supportCandidate ? "recent" : "older_history", role: "support", status: "active", identifiedAt, statusAt: identifiedAt } : null;
   const formingSupport = !support && formingSupportCandidate ? { label: "Potential support · forming",
     low: formingSupportCandidate.center, high: formingSupportCandidate.center + width,
     color: "#70d69c", active: false, touches: formingSupportCandidate.touches,
+    qualityScore: formingSupportCandidate.qualityScore, reactionStrength: formingSupportCandidate.reactionStrength,
     lastTouch: formingSupportCandidate.lastTouch, source: "forming", role: "support", status: "forming", identifiedAt, statusAt: identifiedAt } : null;
   const resistance = resistanceCandidate ? { label: "Resistance zone", low: resistanceCandidate.center - width, high: resistanceCandidate.center,
     color: "#ef7b7b", active: true, touches: resistanceCandidate.touches, lastTouch: resistanceCandidate.lastTouch,
+    qualityScore: resistanceCandidate.qualityScore, reactionStrength: resistanceCandidate.reactionStrength,
     role: "resistance", status: "active", identifiedAt, statusAt: identifiedAt } : null;
   const targetZones = assessed.filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES).map(cluster => {
     const halfWidth = Math.max(averageRange * 0.2, reference * 0.00025);
@@ -146,6 +177,7 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG) {
     const title = `${cluster.role[0].toUpperCase()}${cluster.role.slice(1)}`;
     const zone = { role: cluster.role, label: active ? `${title} zone` : `Previous ${cluster.role}`, low: supportRole ? cluster.center : cluster.center - halfWidth,
       high: supportRole ? cluster.center + halfWidth : cluster.center, touches: cluster.touches,
+      qualityScore: cluster.qualityScore, reactionStrength: cluster.reactionStrength,
       identifiedAt: active ? identifiedAt : rows[Math.min(cluster.lastTouchIndex + SWING_RADIUS, rows.length - 1)].time,
       status: active ? "active" : "previous", active };
     const crossed = rows.some((row, index) => index > cluster.lastTouchIndex
@@ -208,7 +240,7 @@ export function confirmZones(completed, config = DEFAULT_TECHNICAL_CONFIG) {
   const clears = (value, level, above) => above ? value > level + level * 1e-12 : value < level - level * 1e-12;
   for (let i = ZONE_LOOKBACK; i < completed.length; i++) {
     const candle = completed[i];
-    if (!zones) zones = buildZones(completed.slice(0, i), config);
+    if (!zones) zones = buildZones(completed, config, i);
     if (!zones) { state = "Collecting confirmed structure"; continue; }
     if (setup) {
       const zone = setup.direction === "buy" ? setup.zones.resistance : setup.zones.support;
@@ -317,7 +349,7 @@ export function confirmZones(completed, config = DEFAULT_TECHNICAL_CONFIG) {
         // Evaluate this candle against the existing structure before allowing
         // three confirmed swing reactions to introduce a new pair of zones.
         // A recalculation can therefore never hide a break on the same candle.
-        const nextZones = buildZones(completed.slice(0, i), config);
+        const nextZones = buildZones(completed, config, i);
         // Keep an established two-sided range while price is still inside it.
         // Smaller internal swings are not evidence that its boundaries failed.
         const insideEstablishedRange = zones.support && zones.resistance

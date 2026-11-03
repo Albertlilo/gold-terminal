@@ -10,9 +10,12 @@ export function riskReward(entry, stop, target, direction) {
 }
 
 // Technical-only replay: signals use only the prefix known before the entry bar.
-export function backtestCandles(rows, interval, { now, cost, maxBars = 10 }, session = getGoldSession) {
+export function backtestCandles(rows, interval, { now, cost = 0, spread = 0, commission = 0, slippage = 0, maxBars = 10 }, session = getGoldSession) {
   const seconds = TIMEFRAMES[interval]?.seconds;
-  if (!seconds || !Number.isFinite(now) || !Number.isFinite(cost) || cost < 0 || !Number.isInteger(maxBars) || maxBars < 1) throw Error("Enter valid replay assumptions.");
+  const friction = { legacy: cost, spread, commission, slippage };
+  if (!seconds || !Number.isFinite(now) || Object.values(friction).some(value => !Number.isFinite(value) || value < 0)
+    || !Number.isInteger(maxBars) || maxBars < 1) throw Error("Enter valid replay assumptions.");
+  const roundTripCost = cost + spread + commission + slippage;
   const valid = mergeCandles([], rows);
   if (valid.length !== rows.length) throw Error("Replay needs valid, unique candles.");
   const candles = sessionCandles(valid, interval).filter(row => (row.time + seconds) * 1000 <= now);
@@ -33,7 +36,8 @@ export function backtestCandles(rows, interval, { now, cost, maxBars = 10 }, ses
         const risk = (candle.open - stop) * sign;
         const reward = (target - candle.open) * sign;
         const plannedRewardRisk = risk > 0 && reward > 0 ? reward / risk : null;
-        // The configured round-trip cost is deducted once from the result.
+        // Costs are explicit per-ounce round-trip price equivalents. The
+        // legacy all-in `cost` remains accepted for existing callers.
         // Skip gaps that erase the minimum structural R:R before entry.
         if (plannedRewardRisk !== null && plannedRewardRisk >= prior.risk.minRewardRisk) {
           position = { entryTime: candle.time, signalTime: stamp, direction: sign === 1 ? "buy" : "sell", entry: candle.open, stop,
@@ -51,7 +55,7 @@ export function backtestCandles(rows, interval, { now, cost, maxBars = 10 }, ses
     else if (sign === 1 ? candle.high >= target : candle.low <= target) { exit = target; reason = "Target"; }
     else if (i - position.index + 1 >= maxBars) { exit = candle.close; reason = "Holding limit"; }
     if (exit !== null) {
-      const net = (exit - position.entry) * sign - cost;
+      const net = (exit - position.entry) * sign - roundTripCost;
       trades.push({ ...position, exit, exitTime: candle.time, reason, net, netR: net / position.risk });
       position = null;
     }
@@ -64,6 +68,7 @@ export function backtestCandles(rows, interval, { now, cost, maxBars = 10 }, ses
   }
   const average = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   return { trades, signals, openTrade: position, candleCount: candles.length,
+    frictionAssumptions: { spread, commission, slippage, legacyAllInCost: cost, totalRoundTripCost: roundTripCost },
     netR: trades.reduce((sum, trade) => sum + trade.netR, 0),
     winRate: trades.length ? trades.filter(trade => trade.net > 0).length / trades.length * 100 : null,
     averageRewardRisk: average(trades.map(trade => trade.plannedRewardRisk)),

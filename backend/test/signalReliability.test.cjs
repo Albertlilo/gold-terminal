@@ -33,14 +33,14 @@ test('cold quote outage falls back to saved data, total failure stays explicit',
     assert.equal(data.stale, true); assert.ok(!JSON.stringify(data).includes('secret'));
   }
 });
-test('first observed signal survives revised inputs and process restart; concurrent requests coalesce', async () => {
-  const records = new Map(); let writes = 0;
+test('first observed signal survives revised inputs and process restart; concurrent requests coalesce before analysis', async () => {
+  const records = new Map(); let writes = 0, analyses = 0;
   const store = { async insertOnce(event) { writes++; if (!records.has(event.key)) records.set(event.key, structuredClone(event)); return records.get(event.key); }, async recent() { return [...records.values()]; } };
-  const analyse = rows => ({ ready: true, lastTime: 300, confirmation: rows[0].close > 100 ? 'Buy Watch' : 'None' });
+  const analyse = rows => { analyses++; return { ready: true, lastTime: 300, confirmation: rows[0].close > 100 ? 'Buy Watch' : 'None' }; };
   const options = { analyse, store, session, now: () => 700000 };
   const record = createSignalAuditService(options);
   const first = await Promise.all([record('5min', [{time:300,close:101}]), record('5min', [{time:300,close:101}])]);
-  assert.equal(writes, 1); assert.equal(first[0].analysis.confirmation, 'Buy Watch');
+  assert.equal(writes, 1); assert.equal(analyses, 1); assert.equal(first[0].analysis.confirmation, 'Buy Watch');
   const revised = await createSignalAuditService(options)('5min', [{time:300,close:99}]);
   assert.equal(revised.analysis.confirmation, 'Buy Watch'); assert.equal(revised.revisedInput, true);
   assert.equal(records.size, 1);

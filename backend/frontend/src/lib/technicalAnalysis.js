@@ -2,7 +2,23 @@ import { confirmZones, DEFAULT_TECHNICAL_CONFIG } from "./zoneConfirmation.js";
 import { mergeCandles, sessionCandles } from "./candles.js";
 
 export const TIMEFRAMES = { "5min": { label: "5 minutes", seconds: 300 }, "1h": { label: "1 hour", seconds: 3600 }, "1day": { label: "Daily", seconds: 86400 } };
+export const DEFAULT_TECHNICAL_TIMEFRAME_CONFIG = Object.freeze({ context: ["1day", "1h"], confirmation: "5min" });
 export const NOISE_PERCENT = 0.1;
+
+// Higher-timeframe structure and the lower-timeframe setup stay as separate
+// technical reads; this helper does not produce a blended score or touch macro.
+export function summarizeTechnicalTimeframes(analyses, config = DEFAULT_TECHNICAL_TIMEFRAME_CONFIG) {
+  const context = config.context.map(interval => ({ interval, trend: analyses[interval]?.marketStructure?.trend ?? "Not loaded" }));
+  const directions = context.map(item => item.trend === "Higher highs + higher lows" ? "up"
+    : item.trend === "Lower highs + lower lows" ? "down" : null);
+  const status = directions.some(direction => direction === null) ? "Incomplete structure"
+    : directions.every(direction => direction === "up") ? "Aligned upward"
+      : directions.every(direction => direction === "down") ? "Aligned downward" : "Mixed structure";
+  const confirmation = analyses[config.confirmation];
+  return { context, status, confirmationInterval: config.confirmation,
+    confirmationState: confirmation?.ready ? confirmation.state : confirmation?.state ?? "Not loaded",
+    confirmationSignal: confirmation?.ready ? confirmation.confirmation : "None" };
+}
 
 export function analyseCandles(rows, interval, now, config = DEFAULT_TECHNICAL_CONFIG) {
   const duration = TIMEFRAMES[interval]?.seconds;
@@ -19,6 +35,15 @@ export function analyseCandles(rows, interval, now, config = DEFAULT_TECHNICAL_C
   const result = confirmZones(completed, config);
   if (!result.zones) return { ...base, state: result.state, move, close: last.close, marketStructure: result.marketStructure };
   const { support, formingSupport, resistance, buy, sell } = result.zones;
+  const explainZone = zone => zone ? { ...zone, detectionTimeframe: interval,
+    confirmationCondition: zone.role === "support"
+      ? "Confirmed swing lows with separated reactions; a bounce needs a completed bullish close above the zone."
+      : "Confirmed swing highs with separated reactions; a breakout needs a completed close beyond the ATR buffer, then a later successful retest.",
+    invalidationLevel: zone.role === "support" ? zone.low - result.zones.breakBuffer : zone.high + result.zones.breakBuffer,
+    explanation: `${zone.touches ?? 0} independent reaction(s)${Number.isFinite(zone.qualityScore) ? ` · quality ${zone.qualityScore}/100` : ""}${Number.isFinite(zone.reactionStrength) ? ` · average reaction ${zone.reactionStrength.toFixed(2)} ATR` : ""}` } : null;
+  const displayedSupport = explainZone(support);
+  const displayedFormingSupport = explainZone(formingSupport);
+  const displayedResistance = explainZone(resistance);
   return { ...base, ready: true, state: result.state, confirmation: result.confirmation, setup: result.setup, risk: result.risk,
     marketStructure: result.marketStructure, move, close: last.close,
     stale: now / 1000 - (last.time + duration) > Math.max(duration * 2, 900),
@@ -26,7 +51,7 @@ export function analyseCandles(rows, interval, now, config = DEFAULT_TECHNICAL_C
     // Retired levels remain available to the audit/backtest result, but the
     // live chart only receives the current validated structure. Showing old
     // levels beside active ones makes the technical read look contradictory.
-    zones: [support, formingSupport, resistance].filter(Boolean),
+    zones: [displayedSupport, displayedFormingSupport, displayedResistance].filter(Boolean),
     previousZones: result.previousZones,
     structure: { supportTouches: support?.touches ?? null, resistanceTouches: resistance?.touches ?? null,
       breakBuffer: result.zones.breakBuffer, atr: result.zones.atr, historyCount: result.previousZones.length },

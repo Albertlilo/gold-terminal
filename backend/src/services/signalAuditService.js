@@ -1,17 +1,25 @@
 const { createHash } = require("node:crypto");
-const RULE_VERSION = "zones-structure-risk-v18";
+const RULE_VERSION = "zones-structure-risk-v19";
 
 function createSignalAuditService({ analyse, plan, store, now = Date.now, session }) {
   const cache = new Map();
   return async function record(interval, rows) {
     const observedAt = now();
+    const seconds = ({ "5min": 300, "1h": 3600, "1day": 86400 })[interval];
+    const completedInput = seconds ? rows.filter(row => row.time + seconds <= observedAt / 1000) : rows;
+    const lastCompletedTime = completedInput.at(-1)?.time ?? null;
+    const inputHash = createHash("sha256").update(JSON.stringify(completedInput)).digest("hex");
+    const key = `${RULE_VERSION}:${interval}:${lastCompletedTime}`;
+    const cached = cache.get(interval);
+    // Hash the bounded candle page first. Matching requests now avoid rerunning
+    // the full technical replay for every visitor; changed candle history still
+    // bypasses the cache and is marked as a revision in the immutable audit.
+    if (lastCompletedTime !== null && cached?.key === key && cached.inputHash === inputHash
+      && (cached.saved || observedAt - cached.at < 30000)) return cached.promise;
+
     const analysis = analyse(rows, interval, observedAt);
     if (!analysis.ready) return { status: "collecting", analysis };
     const completed = rows.filter(row => row.time <= analysis.lastTime);
-    const inputHash = createHash("sha256").update(JSON.stringify(completed)).digest("hex");
-    const key = `${RULE_VERSION}:${interval}:${analysis.lastTime}`;
-    const cached = cache.get(interval);
-    if (cached?.key === key && cached.inputHash === inputHash && (cached.saved || observedAt - cached.at < 30000)) return cached.promise;
     const marketSession = session(observedAt);
     const event = { key, ruleVersion: RULE_VERSION, interval, candleTime: analysis.lastTime,
       observedAt: new Date(observedAt).toISOString(), inputHash, analysis,

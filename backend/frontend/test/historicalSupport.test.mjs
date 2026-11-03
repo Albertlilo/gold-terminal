@@ -13,6 +13,8 @@ test('repeated older floor reactions become chart references', () => {
   assert.equal(floor.firstTime, candles[18].time, 'the historical zone starts when the third swing is confirmed');
   assert.equal(floor.lastTime, candles[16].time);
   assert.equal(floor.lastTime, candles[16].time);
+  assert.ok(floor.qualityScore >= 0 && floor.qualityScore <= 100);
+  assert.ok(Number.isFinite(floor.reactionStrength));
 });
 
 test('an isolated deeper wick is not promoted to historical support', () => {
@@ -31,6 +33,8 @@ test('repeated confirmed swing highs become historical resistance references', (
   assert.equal(zone.role, 'resistance');
   assert.equal(zone.color, '#ef7b7b');
   assert.equal(zone.firstTime, candles[18].time, 'the zone begins when the third reaction is confirmed');
+  assert.ok(zone.qualityScore >= 0 && zone.qualityScore <= 100);
+  assert.ok(Number.isFinite(zone.reactionStrength));
 });
 
 test('one recent confirmed swing high can be shown as provisional resistance without becoming an active zone', () => {

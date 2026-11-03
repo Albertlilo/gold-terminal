@@ -36,6 +36,16 @@ test('replay uses next-bar entry, structural target, round-trip friction and con
   assert.ok(result.maxDrawdownR > 0);
 });
 
+test('replay reports spread, commission and slippage separately and deducts their total once', () => {
+  const rows=[...setup(),row(52,102,99,110,102)];
+  const assumptions={now:options.now,spread:0.08,commission:0.04,slippage:0.03,maxBars:10};
+  const result=backtestCandles(rows,'5min',assumptions,session);
+  const trade=result.trades[0];
+  assert.equal(result.frictionAssumptions.totalRoundTripCost,0.15);
+  assert.equal(result.frictionAssumptions.spread,0.08);
+  assert.ok(Math.abs(trade.net-(trade.stop-trade.entry-0.15))<1e-10);
+});
+
 test('future bars cannot rewrite earlier signals or finished trades', () => {
   const rows=[...setup(),row(52,102,99,110,102)];
   const prefix=backtestCandles(rows,'5min',options,session);

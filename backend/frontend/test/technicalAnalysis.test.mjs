@@ -1,12 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyseCandles, getSetupStage, makeTechnicalPlan } from '../src/lib/technicalAnalysis.js';
+import { analyseCandles, getSetupStage, makeTechnicalPlan, summarizeTechnicalTimeframes } from '../src/lib/technicalAnalysis.js';
 import { getGoldSession } from '../src/lib/goldSession.js';
 import { archiveChangedZones, buildZones, DEFAULT_TECHNICAL_CONFIG } from '../src/lib/zoneConfirmation.js';
 const testSessionStart = Date.parse('2026-10-19T22:00:00Z') / 1000;
 const row = (i, close=100, low=99, high=101, seconds=300) => ({time:testSessionStart+(i+1)*seconds,open:close,close,low,high});
 const base = (seconds=300) => Array.from({length:20},(_,i)=>row(i,100,99,101,seconds));
 const analyse = (rows, interval='5min', seconds=300) => analyseCandles(rows,interval,(rows.at(-1).time+seconds)*1000,{...DEFAULT_TECHNICAL_CONFIG,enforceRisk:false});
+
+test('Daily and 1H structure stay separate from the configurable 5M setup read',()=>{
+  const read=summarizeTechnicalTimeframes({
+    '1day':{marketStructure:{trend:'Higher highs + higher lows'}},
+    '1h':{marketStructure:{trend:'Higher highs + higher lows'}},
+    '5min':{ready:true,state:'Breakout · awaiting retest',confirmation:'None'},
+  });
+  assert.equal(read.status,'Aligned upward');
+  assert.equal(read.confirmationInterval,'5min');
+  assert.equal(read.confirmationState,'Breakout · awaiting retest');
+  const mixed=summarizeTechnicalTimeframes({
+    '1day':{marketStructure:{trend:'Higher highs + higher lows'}},
+    '1h':{marketStructure:{trend:'Lower highs + lower lows'}},
+    '5min':{ready:true,state:'Support bounce confirmed',confirmation:'Support Bounce'},
+  });
+  assert.equal(mixed.status,'Mixed structure');
+  assert.equal(mixed.confirmationSignal,'Support Bounce');
+});
 
 test('price breakout alone, including a same-candle touch, cannot trigger Buy Watch',()=>{
   const a=analyse([...base(),row(20,102,100,103)]);
@@ -105,6 +123,9 @@ test('a new support qualifies after two separated reactions and a completed bull
   assert.ok(zones?.support);
   assert.equal(zones.support.touches,2);
   assert.equal(zones.support.source,'recent');
+  assert.ok(zones.atr > 0);
+  assert.ok(zones.support.qualityScore >= 0 && zones.support.qualityScore <= 100);
+  assert.ok(Number.isFinite(zones.support.reactionStrength));
   const broken=[...rows.slice(0,-1),{...row(19,94,93,97),open:96}];
   assert.equal(buildZones(broken)?.support??null,null);
 });

@@ -71,12 +71,17 @@ export function historicalReactions(candles, role, minTouches = 3, asOfTime = ca
     const ceiling = Math.max(...context.map(row => row.high));
     if (isSupport ? price > floor + (ceiling - floor) * 0.35 : price < ceiling - (ceiling - floor) * 0.35) continue;
     const range = context.reduce((sum, row) => sum + row.high - row.low, 0) / context.length;
+    const atr = context.reduce((sum, row, offset) => {
+      const previousClose = context[offset - 1]?.close ?? row.open;
+      return sum + Math.max(row.high - row.low, Math.abs(row.high - previousClose), Math.abs(row.low - previousClose));
+    }, 0) / context.length;
     const departure = Math.max(range * 0.25, price * 0.0001);
-    const confirmingBar = candles.slice(i + 1, i + 3).findIndex(row => row.time <= asOfTime && (isSupport
-      ? row.close >= price + departure : row.close <= price - departure));
+    const recovery = candles.slice(i + 1, i + 3).filter(row => row.time <= asOfTime);
+    const confirmingBar = recovery.findIndex(row => isSupport
+      ? row.close >= price + departure : row.close <= price - departure);
     if (confirmingBar < 0) continue;
 
-    const mergeDistance = Math.max(range * 0.35, price * 0.0004);
+    const mergeDistance = Math.max(atr * 0.35, price * 0.0004);
     let cluster = clusters.find(item => Math.abs(item.price - price) <= Math.max(item.mergeDistance, mergeDistance));
     if (!cluster) {
       cluster = { price, points: [], width: Math.max(range * 0.2, price * 0.00025), mergeDistance };
@@ -85,8 +90,9 @@ export function historicalReactions(candles, role, minTouches = 3, asOfTime = ca
     if (cluster.points.length && i - cluster.points.at(-1).index < 4) continue;
     // Keep the first confirmed price fixed: later reactions count toward the
     // zone but never retroactively shift its plotted level.
+    const excursion = recovery.reduce((best, row) => Math.max(best, isSupport ? row.high - price : price - row.low), 0);
     cluster.points.push({ index: i, time: candle.time, confirmedIndex: i + 2,
-      confirmedAt: candles[i + 2].time });
+      confirmedAt: candles[i + 2].time, reactionStrength: Math.max(0, excursion) / Math.max(atr, Number.EPSILON) });
   }
 
   return clusters.filter(item => item.points.length >= minTouches).map(item => {
@@ -98,6 +104,10 @@ export function historicalReactions(candles, role, minTouches = 3, asOfTime = ca
     const latest = item.points.at(-1);
     const lifecycle = classifyRoleReversal(completed, zone, role, identified.confirmedIndex + 1, item.width);
     const age = completed.length - 1 - latest.confirmedIndex;
+    const averageReactionStrength = item.points.reduce((sum, point) => sum + point.reactionStrength, 0) / item.points.length;
+    const recencyScore = Math.exp(-age / 60);
+    const touchScore = Math.min(1, item.points.length / 5);
+    const qualityScore = Math.round((touchScore * 0.45 + Math.min(1, averageReactionStrength) * 0.35 + recencyScore * 0.2) * 100);
     const status = lifecycle.status === "active" && age > Math.max(30, candles.length * 0.2) ? "inactive"
       : lifecycle.status === "active" && includeForming && item.points.length < 3 ? "forming" : lifecycle.status;
     const style = ROLE_STYLES[role];
@@ -114,6 +124,10 @@ export function historicalReactions(candles, role, minTouches = 3, asOfTime = ca
       identifiedAt: identified.confirmedAt,
       lastTime: latest.time,
       touches: item.points.length,
+      reactionStrength: Number(averageReactionStrength.toFixed(2)),
+      recencyBars: age,
+      qualityScore,
+      broken: Boolean(lifecycle.reversal),
       status,
       active: status === "active",
       color: status === "active" ? style.color : style.muted,

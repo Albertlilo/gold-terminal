@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "push:setup": "node scripts/setup-push.cjs",
+    "benchmark:technical": "node scripts/technical-benchmark.cjs",
+    "audit:mongodb": "node scripts/audit-mongo-candles.cjs",
     "test": "node --test test/*.test.cjs frontend/test/*.test.mjs",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js"

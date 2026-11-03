@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import GoldCandleChart from "../components/GoldCandleChart";
-import { analyseCandles, getSetupStage, makeTechnicalPlan, TIMEFRAMES } from "../lib/technicalAnalysis";
+import { analyseCandles, DEFAULT_TECHNICAL_TIMEFRAME_CONFIG, getSetupStage, makeTechnicalPlan, summarizeTechnicalTimeframes, TIMEFRAMES } from "../lib/technicalAnalysis";
 import { getGoldSession } from "../lib/goldSession";
 import SignalReview from "../components/SignalReview";
 import { RULE_VERSION } from "../lib/zoneConfirmation";
@@ -42,6 +42,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
     key,
     analysis: key === PRIMARY_ANALYSIS_INTERVAL ? calculated : history[key] ? safeAnalyseCandles(history[key], key, currentTime.getTime()) : null,
   })), [history, currentTime, calculated]);
+  const timeframeRead = summarizeTechnicalTimeframes(Object.fromEntries(structureTimeframes.map(item => [item.key, item.analysis])), DEFAULT_TECHNICAL_TIMEFRAME_CONFIG);
   const audit = audits[PRIMARY_ANALYSIS_INTERVAL];
   const chartAnalysis = structureTimeframes.find(({ key }) => key === chartInterval)?.analysis;
   const versionMismatch = chartInterval === PRIMARY_ANALYSIS_INTERVAL && audit?.status === "saved" && audit.ruleVersion !== RULE_VERSION;
@@ -105,6 +106,12 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <article className={`terminal-card summary-card tone-${setupStage.tone}`}><span className="terminal-eyebrow">◉ &nbsp; Setup Stage</span><h2>{setupStage.label}</h2><p>{setupStage.detail}</p>{(analysis.stale || !session.isOpen || versionMismatch) && <p>Historical or unavailable for a fresh signal right now.</p>}</article>
         <article className={`terminal-card summary-card tone-${["Sell Watch", "Resistance Rejection"].includes(plan.signal) ? "down" : ["Buy Watch", "Support Bounce"].includes(plan.signal) ? "up" : "neutral"}`}><span className="terminal-eyebrow">◎ &nbsp; Technical Signal</span><h2 className="technical-signal">{plan.signal.toUpperCase()}</h2><p>{conciseReason}</p></article>
       </section>
+      <section className="terminal-card timeframe-context" aria-label="Multi-timeframe technical context">
+        <div className="terminal-panel-title"><h2>Multi-timeframe technical context</h2><span>TECHNICAL ONLY · MACRO SEPARATE</span></div>
+        <p><strong>Daily + 1H structure:</strong> {timeframeRead.status} · {timeframeRead.context.map(item => `${TIMEFRAMES[item.interval].label}: ${item.trend}`).join(" · ")}</p>
+        <p><strong>5M setup check:</strong> {timeframeRead.confirmationState}{timeframeRead.confirmationSignal !== "None" ? ` · ${timeframeRead.confirmationSignal}` : " · not confirmed"}</p>
+        <small>This context is informational. It does not blend timeframes into a score or alter the selected timeframe’s independent setup.</small>
+      </section>
       <section className="terminal-card read-panel">
         <div className="terminal-panel-title"><h2><span aria-hidden="true">▤</span> How to Read This</h2><span>DISCIPLINE WINS</span></div>
         <p>Wait for a completed-candle setup. Macro does not change technical signals.</p>
@@ -142,9 +149,9 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <p className="analysis-method">{TIMEFRAMES[chartInterval].label} analysis. Setups expire after 10 completed bars per stage; a closing candle can invalidate sooner.</p>
         {analysis.setup && <div className="technical-confirmation"><strong>{analysis.state}</strong> · {analysis.setup.barsRemaining} completed-bar step(s) until this phase expires.<br />{analysis.setup.type === "support-bounce" ? "Support approach candle opened" : analysis.setup.type === "resistance-rejection" ? "Resistance approach candle opened" : "Break candle opened"}: {stamp((analysis.setup.startTime ?? analysis.setup.breakTime) * 1000)}<br />{analysis.setup.type === "support-bounce" ? "Support touch" : analysis.setup.type === "resistance-rejection" ? "Resistance touch" : "First retest touch"}: {analysis.setup.touchedAt ? stamp((analysis.setup.touchedAt + TIMEFRAMES[chartInterval].seconds) * 1000) : "Still waiting"}<br />Confirmation: {analysis.setup.confirmedAt ? stamp((analysis.setup.confirmedAt + TIMEFRAMES[chartInterval].seconds) * 1000) : "Not confirmed"}<br /><small>Local times. The countdown is not a guaranteed entry window; invalidation can happen on the next completed candle.</small></div>}
         {analysis.ready && !recorded && <p className="analysis-method">{chartInterval === PRIMARY_ANALYSIS_INTERVAL ? "Provisional calculation · no verified saved decision is available for this response." : `Live ${TIMEFRAMES[chartInterval].label} calculation · based on its own completed saved candles.`}</p>}
-        <div className="zone-readout">{activeZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.displayLabel || zone.label}: {money(zone.low)}–{money(zone.high)} · {zone.status || "active"}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}</span>)}{showPreviousZones && previousZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label} · {zone.status || "previous"}: {money(zone.low)}–{money(zone.high)}</span>)}</div>
+        <div className="zone-readout">{activeZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.displayLabel || zone.label}: {money(zone.low)}–{money(zone.high)} · {zone.status || "active"}{Number.isFinite(zone.touches) ? ` · ${zone.touches} reactions` : ""}{zone.detectionTimeframe ? ` · ${TIMEFRAMES[zone.detectionTimeframe]?.label || zone.detectionTimeframe}` : ""}{Number.isFinite(zone.qualityScore) ? ` · quality ${zone.qualityScore}/100` : ""}</span>)}{showPreviousZones && previousZones.map(zone => <span key={zone.id || zone.label} style={{ color: zone.color }}>{zone.label} · {zone.status || "previous"}: {money(zone.low)}–{money(zone.high)}</span>)}</div>
         <details className="zone-history-details"><summary>Zone identification and status times</summary>
-          {[...activeZones, ...(analysis.previousZones || []).slice(-6)].map(zone => <p key={`${zone.id || zone.label}-times`}><strong>{zone.displayLabel || zone.label}</strong> · {zone.status || "active"} · identified {zone.identifiedAt ? stamp(zone.identifiedAt * 1000) : "time unavailable"} · status changed {zone.statusAt ? stamp(zone.statusAt * 1000) : "not recorded"}{zone.statusReason ? ` · ${zone.statusReason}` : ""}</p>)}
+          {[...activeZones, ...(analysis.previousZones || []).slice(-6)].map(zone => <p key={`${zone.id || zone.label}-times`}><strong>{zone.displayLabel || zone.label}</strong> · {zone.status || "active"} · {zone.detectionTimeframe ? `detected on ${TIMEFRAMES[zone.detectionTimeframe]?.label || zone.detectionTimeframe} · ` : ""}boundaries {money(zone.low)}–{money(zone.high)} · {Number.isFinite(zone.touches) ? `${zone.touches} independent reactions · ` : ""}{zone.explanation ? `${zone.explanation} · ` : ""}identified {zone.identifiedAt ? stamp(zone.identifiedAt * 1000) : "time unavailable"} · status changed {zone.statusAt ? stamp(zone.statusAt * 1000) : "not recorded"}{zone.statusReason ? ` · ${zone.statusReason}` : ""}{zone.confirmationCondition ? ` · confirmation: ${zone.confirmationCondition}` : ""}{Number.isFinite(zone.invalidationLevel) ? ` · invalidation beyond ${money(zone.invalidationLevel)}` : ""}</p>)}
         </details>
         {activeZones.some(zone => zone.source === "forming") && <p className="analysis-method">Dashed potential support is a developing reference only. Support Bounce and Sell Watch still need confirmed active support.</p>}
         <p className="analysis-method">Support: {hasSupport ? "active" : "not confirmed"}. Resistance: {hasResistance ? "active" : "not confirmed"}. Previous zones are references only.</p>
