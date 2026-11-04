@@ -1,5 +1,5 @@
 import { getGoldSession } from "../lib/goldSession";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { candleWindow, mergeCandles, candlePriceBounds, sessionCandles } from "../lib/candles";
 import { requestHistory } from "../lib/historyRequest";
 import { accountFetch } from '../lib/accountClient';
@@ -67,6 +67,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const pinchRef = useRef(null);
   const automaticPage = useRef(null);
   const olderRequest = useRef(null);
+  const pendingOlderPan = useRef(0);
   const retryRef = useRef(null);
   const skipInitialFetch = useRef(initialCandles.length > 0 || initialLoadPending);
   const [refreshing, setRefreshing] = useState(false);
@@ -176,7 +177,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     return () => { observer.disconnect(); element.removeEventListener("wheel", wheel); };
   }, []);
 
-  async function loadOlder(automatic = false) {
+  const loadOlder = useCallback(async (automatic = false) => {
     if (!candles.length || olderRequest.current || !hasMore) return;
     const before = candles[0].time;
     // One automatic attempt per boundary; failures need an explicit retry.
@@ -192,17 +193,28 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
       setCandles(previous => mergeCandles(older, previous));
       setHasMore(older.length > 0 && data.hasMore !== false);
       if (older.length && !automatic) setEndTime(before);
+      if (!older.length) pendingOlderPan.current = 0;
       setStatus(data.warning || (older.length ? "Older candles loaded. Keep dragging right to explore earlier history." : "Reached the end of available history for this timeframe."));
     } catch (error) {
-      if (error.name !== "AbortError") setStatus(error.message);
+      if (error.name !== "AbortError") {
+        pendingOlderPan.current = 0;
+        setStatus(error.message);
+      }
     } finally {
       if (!controller.signal.aborted) setLoadingOlder(false);
       olderRequest.current = null;
     }
-  }
+  }, [candles, hasMore, interval]);
 
   const chartCandles = useMemo(() => sessionCandles(candles, interval), [candles, interval]);
   const hiddenClosed = candles.length - chartCandles.length;
+  useEffect(() => {
+    if (!pendingOlderPan.current || loadingOlder || olderRequest.current) return;
+    const next = panWindow(chartCandles, count, endTime, -pendingOlderPan.current);
+    pendingOlderPan.current = next.needsOlder ? next.olderBy : 0;
+    setEndTime(next.endTime);
+    if (next.needsOlder) void loadOlder(true);
+  }, [chartCandles, count, endTime, loadingOlder, loadOlder]);
   const intervalSeconds = interval === "5min" ? 300 : interval === "1day" ? 86400 : 3600;
   const receivedAtMs = Date.parse(liveQuote?.receivedAt);
   const quoteTimeMs = Date.parse(liveQuote?.sourceTimestamp) || receivedAtMs;
@@ -320,6 +332,10 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
 
   function moveBy(amount) {
     const next = panWindow(chartCandles, count, endTime, amount);
+    if (amount < 0 && next.needsOlder) {
+      pendingOlderPan.current += pendingOlderPan.current > 0 ? Math.abs(amount) : next.olderBy;
+    }
+    else if (amount > 0) pendingOlderPan.current = 0;
     setEndTime(next.endTime);
     setHover(null);
     if (next.needsOlder) void loadOlder(true);

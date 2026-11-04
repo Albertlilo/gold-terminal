@@ -8,9 +8,14 @@ export function panWindow(candles, count, endTime, amount) {
   const firstFull = Math.min(count, candles.length) - 1;
   const requested = end + amount;
   const index = Math.max(firstFull, Math.min(candles.length - 1, requested));
+  const olderBy = amount < 0 ? Math.max(0, firstFull - requested) : 0;
   // Keep an explicit anchor at the left boundary so prepending cannot move the view.
-  return { endTime: amount < 0 || index < candles.length - 1 ? candles[index].time : null,
+  const result = { endTime: amount < 0 || index < candles.length - 1 ? candles[index].time : null,
     needsOlder: amount < 0 && requested < firstFull };
+  // Preserve drag distance that extends beyond loaded data. The chart can
+  // apply it after the next older page arrives instead of dropping the pan.
+  if (olderBy > 0) result.olderBy = olderBy;
+  return result;
 }
 
 export function olderPage(existing, incoming, before) {
