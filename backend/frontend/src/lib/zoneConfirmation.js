@@ -136,10 +136,8 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG, endExclu
   const formingSupportCandidate = !supportCandidate && !historicalFloor
     ? assessed.filter(cluster => cluster.role === "support" && cluster.touches >= 1
       && cluster.lastTouchIndex >= rows.length - ZONE_LOOKBACK
-      && cluster.center < reference - minimumGap && cluster.center >= recentLow - activeMargin
+      && cluster.center <= reference + minimumGap && cluster.center >= recentLow - activeMargin
       && cluster.center <= lowerBand
-      && recent.slice(-3).some(row => row.low <= cluster.center + minimumGap
-        && row.close > cluster.center + minimumGap && row.close > row.open)
       && !rows.some((row, index) => index > cluster.lastTouchIndex
         && row.close < cluster.center - minimumGap))
     .sort((a, b) => b.qualityScore - a.qualityScore || a.center - b.center)[0]
@@ -147,7 +145,14 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG, endExclu
   const resistanceCandidate = confirmed.filter(cluster => cluster.role === "resistance"
       && cluster.center > reference + minimumGap && cluster.center <= recentHigh + activeMargin)
     .sort((a, b) => b.qualityScore - a.qualityScore || a.center - b.center)[0];
-  if (!supportCandidate && !historicalFloor && !formingSupportCandidate && !resistanceCandidate) return null;
+  const formingResistanceCandidate = !resistanceCandidate
+    ? assessed.filter(cluster => cluster.role === "resistance" && cluster.touches >= 1
+      && cluster.lastTouchIndex >= rows.length - ZONE_LOOKBACK
+      && cluster.center >= reference - minimumGap && cluster.center <= recentHigh + activeMargin
+      && !cluster.broken)
+      .sort((a, b) => b.qualityScore - a.qualityScore || b.center - a.center)[0]
+    : null;
+  if (!supportCandidate && !historicalFloor && !formingSupportCandidate && !resistanceCandidate && !formingResistanceCandidate) return null;
   const baseWidth = Math.max(averageRange * 0.2, reference * 0.00025);
   const supportPrice = supportCandidate?.center ?? historicalFloor?.low;
   const gap = supportPrice && resistanceCandidate ? resistanceCandidate.center - supportPrice : null;
@@ -170,6 +175,11 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG, endExclu
     color: "#ef7b7b", active: true, touches: resistanceCandidate.touches, lastTouch: resistanceCandidate.lastTouch,
     qualityScore: resistanceCandidate.qualityScore, reactionStrength: resistanceCandidate.reactionStrength,
     role: "resistance", status: "active", identifiedAt, statusAt: identifiedAt } : null;
+  const formingResistance = !resistance && formingResistanceCandidate ? { label: "Potential resistance · forming",
+    low: formingResistanceCandidate.center - width, high: formingResistanceCandidate.center,
+    color: "#ef7b7b", active: false, touches: formingResistanceCandidate.touches,
+    qualityScore: formingResistanceCandidate.qualityScore, reactionStrength: formingResistanceCandidate.reactionStrength,
+    lastTouch: formingResistanceCandidate.lastTouch, source: "forming", role: "resistance", status: "forming", identifiedAt, statusAt: identifiedAt } : null;
   const targetZones = assessed.filter(cluster => cluster.touches >= MIN_ZONE_TOUCHES).map(cluster => {
     const halfWidth = Math.max(averageRange * 0.2, reference * 0.00025);
     const supportRole = cluster.role === "support";
@@ -184,7 +194,7 @@ export function buildZones(previous, config = DEFAULT_TECHNICAL_CONFIG, endExclu
       && (supportRole ? row.close < zone.low - breakBuffer : row.close > zone.high + breakBuffer));
     return crossed ? null : zone;
   }).filter(Boolean);
-  return { support, formingSupport, resistance, buy: resistance ? resistance.high + breakBuffer : null,
+  return { support, formingSupport, resistance, formingResistance, buy: resistance ? resistance.high + breakBuffer : null,
     sell: support ? support.low - breakBuffer : null,
     breakBuffer, averageRange, atr, targets: targetZones };
 }
@@ -203,6 +213,7 @@ function structureState(zones) {
   if (zones?.support && zones?.resistance) return "Between zones";
   if (zones?.support) return "Support confirmed · finding resistance";
   if (zones?.resistance) return "Resistance confirmed · finding support";
+  if (zones?.formingSupport || zones?.formingResistance) return "Potential zones forming · not confirmed";
   return "Collecting confirmed structure";
 }
 
@@ -356,7 +367,8 @@ export function confirmZones(completed, config = DEFAULT_TECHNICAL_CONFIG) {
           && candle.close >= zones.support.low && candle.close <= zones.resistance.high;
         const changed = !nextZones || !sameZone(zones.support, nextZones.support)
           || !sameZone(zones.resistance, nextZones.resistance)
-          || !sameZone(zones.formingSupport, nextZones.formingSupport);
+          || !sameZone(zones.formingSupport, nextZones.formingSupport)
+          || !sameZone(zones.formingResistance, nextZones.formingResistance);
         if (!insideEstablishedRange && changed) {
           previousZones = archiveChangedZones(previousZones, zones, nextZones, candle.time, candle);
           zones = nextZones;

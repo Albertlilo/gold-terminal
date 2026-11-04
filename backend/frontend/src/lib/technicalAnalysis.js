@@ -34,9 +34,11 @@ export function analyseCandles(rows, interval, now, config = DEFAULT_TECHNICAL_C
   const move = (last.close - anchor) / anchor * 100;
   const result = confirmZones(completed, config);
   if (!result.zones) return { ...base, state: result.state, move, close: last.close, marketStructure: result.marketStructure };
-  const { support, formingSupport, resistance, buy, sell } = result.zones;
+  const { support, formingSupport, resistance, formingResistance, buy, sell } = result.zones;
   const explainZone = zone => zone ? { ...zone, detectionTimeframe: interval,
-    confirmationCondition: zone.role === "support"
+    confirmationCondition: zone.status === "forming"
+      ? "Potential swing zone only; it needs three separated reactions to become active and cannot trigger a setup."
+      : zone.role === "support"
       ? "Confirmed swing lows with separated reactions; a bounce needs a completed bullish close above the zone."
       : "Confirmed swing highs with separated reactions; a breakout needs a completed close beyond the ATR buffer, then a later successful retest.",
     invalidationLevel: zone.role === "support" ? zone.low - result.zones.breakBuffer : zone.high + result.zones.breakBuffer,
@@ -44,6 +46,7 @@ export function analyseCandles(rows, interval, now, config = DEFAULT_TECHNICAL_C
   const displayedSupport = explainZone(support);
   const displayedFormingSupport = explainZone(formingSupport);
   const displayedResistance = explainZone(resistance);
+  const displayedFormingResistance = explainZone(formingResistance);
   return { ...base, ready: true, state: result.state, confirmation: result.confirmation, setup: result.setup, risk: result.risk,
     marketStructure: result.marketStructure, move, close: last.close,
     stale: now / 1000 - (last.time + duration) > Math.max(duration * 2, 900),
@@ -51,7 +54,7 @@ export function analyseCandles(rows, interval, now, config = DEFAULT_TECHNICAL_C
     // Retired levels remain available to the audit record, but the
     // live chart only receives the current validated structure. Showing old
     // levels beside active ones makes the technical read look contradictory.
-    zones: [displayedSupport, displayedFormingSupport, displayedResistance].filter(Boolean),
+    zones: [displayedSupport, displayedFormingSupport, displayedResistance, displayedFormingResistance].filter(Boolean),
     previousZones: result.previousZones,
     structure: { supportTouches: support?.touches ?? null, resistanceTouches: resistance?.touches ?? null,
       breakBuffer: result.zones.breakBuffer, atr: result.zones.atr, historyCount: result.previousZones.length },

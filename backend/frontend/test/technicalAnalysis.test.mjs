@@ -114,6 +114,18 @@ test('repeated lows without a completed recovery do not establish support',()=>{
   assert.equal(buildZones(rows),null);
 });
 
+test('a recent resistance swing can be shown as potential without creating a signal',()=>{
+  const rows=Array.from({length:20},(_,i)=>row(i,100,99,100+i*0.02));
+  rows[15]={...row(15,100,99,110)};
+  const zones=buildZones(rows);
+  assert.equal(zones?.resistance??null,null);
+  assert.equal(zones?.formingResistance?.status,'forming');
+  const analysis=analyse([...rows,row(20,100,99,101)]);
+  assert.ok(analysis.zones.some(zone=>zone.label==='Potential resistance · forming'));
+  assert.equal(analysis.levels.some(level=>level.label==='Buy Watch trigger'),false);
+  assert.equal(analysis.confirmation,'None');
+});
+
 test('a new support qualifies after two separated reactions and a completed bullish return',()=>{
   const rows=base();
   rows[3]={...row(3,100,95,101),open:99.8};

@@ -2908,6 +2908,14 @@ body {
   animation: future-arrive 440ms cubic-bezier(0.18, 0.78, 0.2, 1) both;
 }
 
+/* Transforms and filters on an ancestor establish a containing block for fixed
+   descendants. Remove that page transition context while the chart is modal. */
+body.chart-fullscreen-open .page-stage {
+  animation: none !important;
+  transform: none !important;
+  filter: none !important;
+}
+
 @keyframes future-arrive {
   from { opacity: 0; transform: translateY(12px) scale(0.996); filter: blur(3px); }
   to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }

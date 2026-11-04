@@ -19,9 +19,14 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EM
     if (!expanded) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    document.body.classList.add("chart-fullscreen-open");
     const onKeyDown = event => { if (event.key === "Escape") setExpanded(false); };
     window.addEventListener("keydown", onKeyDown);
-    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", onKeyDown); };
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.classList.remove("chart-fullscreen-open");
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [expanded]);
   const interval = selectedInterval || localInterval;
   return (
@@ -413,7 +418,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
             return <g key={index}><line x1="8" x2={plotWidth + 8} y1={y(price)} y2={y(price)} stroke="#292929" /><text x={width - 8} y={y(price) + 4} textAnchor="end" fill="#bcbcbc" fontSize="12">{price.toFixed(2)}</text></g>;
           })}
           {bands.filter(zone => zone.high >= min && zone.low <= max).map(zone => <g key={zone.id || zone.label}>
-            <rect x="8" y={y(Math.min(max, zone.high))} width={plotWidth} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={zone.color} fillOpacity={zone.active === false ? "0.035" : "0.12"} stroke={zone.color} strokeOpacity={zone.active === false ? "0.3" : "0.55"} strokeDasharray={zone.active === false ? "4 5" : undefined} />
+            <rect x="8" y={y(Math.min(max, zone.high))} width={plotWidth} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={zone.color} fillOpacity={zone.status === "forming" ? "0.075" : zone.active === false ? "0.035" : "0.12"} stroke={zone.color} strokeOpacity={zone.status === "forming" ? "0.72" : zone.active === false ? "0.3" : "0.55"} strokeDasharray={zone.status === "forming" ? "2 4" : zone.active === false ? "4 5" : undefined} />
             <text x="12" y={Math.min(bottom - 5, y(Math.min(max, zone.high)) + 13)} fill={zone.color} stroke="#111" strokeWidth="3" paintOrder="stroke" fontSize={width < 420 ? "10" : "12"}>{zone.displayLabel || zone.label}</text>
           </g>)}
           {positionedHistoricalAnnotations.map(({ zone, desiredY, labelY: rawLabelY }) => {
