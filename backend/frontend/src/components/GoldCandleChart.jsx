@@ -49,7 +49,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const [magnify, setMagnify] = useState(true);
   const [fitLevels, setFitLevels] = useState(false);
   const [showPastSupport, setShowPastSupport] = useState(false);
-  const [showPastResistance, setShowPastResistance] = useState(false);
+  const [showPastResistance, setShowPastResistance] = useState(true);
   const [priceZoom, setPriceZoom] = useState(1);
   const [futureOffset, setFutureOffset] = useState(10);
   const [candles, setCandles] = useState(initialCandles);
@@ -267,7 +267,9 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     if (visibleStart === undefined || visibleEnd === undefined) return [];
     const first = chartCandles.findIndex(row => row.time >= visibleStart);
     const last = chartCandles.findLastIndex(row => row.time <= visibleEnd);
-    const contextStart = Math.max(0, first - 40);
+    // Keep confirmed resistance reactions in view even when their earlier
+    // touches predate the current viewport by several sessions.
+    const contextStart = Math.max(0, first - 300);
     const contextEnd = Math.min(chartCandles.length - 1, last + 3);
     return historicalResistances(chartCandles.slice(contextStart, contextEnd), 3, completedAsOf);
   }, [chartCandles, visibleStart, visibleEnd, completedAsOf]);
@@ -275,7 +277,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     if (visibleStart === undefined || visibleEnd === undefined) return [];
     const first = chartCandles.findIndex(row => row.time >= visibleStart);
     const last = chartCandles.findLastIndex(row => row.time <= visibleEnd);
-    const contextStart = Math.max(0, first - 40);
+    const contextStart = Math.max(0, first - 300);
     const contextEnd = Math.min(chartCandles.length - 1, last + 3);
     return historicalResistances(chartCandles.slice(contextStart, contextEnd), 1, completedAsOf, true);
   }, [chartCandles, visibleStart, visibleEnd, completedAsOf]);
@@ -300,19 +302,39 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const visiblePastSupports = showPastSupport && visible.length ? pastSupports.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
     && zone.high >= min && zone.low <= max && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
     .sort((a, b) => Math.abs((a.low + a.high) / 2 - (visible.at(-1)?.close ?? 0)) - Math.abs((b.low + b.high) / 2 - (visible.at(-1)?.close ?? 0)) || b.lastTime - a.lastTime).slice(0, 1) : [];
-  const visiblePastResistances = showPastResistance && visible.length ? pastResistances.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
-    && zone.high >= min && zone.low <= max && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
-    .sort((a, b) => Math.abs((a.low + a.high) / 2 - (visible.at(-1)?.close ?? 0)) - Math.abs((b.low + b.high) / 2 - (visible.at(-1)?.close ?? 0)) || b.lastTime - a.lastTime).slice(0, 1) : [];
   const developingResistance = visible.length ? developingResistances
     .filter(zone => zone.status === "forming" && zone.lastTime >= visibleStart && zone.lastTime <= visibleEnd
       && zone.high >= min && zone.low <= max
       && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
     .sort((a, b) => b.lastTime - a.lastTime)[0] : null;
-  const latestResistance = [developingResistance, recentResistanceTest]
+  const latestResistanceTestZone = [developingResistance, recentResistanceTest]
     .filter(zone => zone && zone.lastTime >= visibleStart && zone.lastTime <= visibleEnd
       && zone.high >= min && zone.low <= max
       && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
     .sort((a, b) => b.lastTime - a.lastTime)[0] || null;
+  // A one-bar test near an already-confirmed resistance should inherit that
+  // zone's boundaries and independent reaction count instead of replacing it
+  // with a misleading single-reaction marker.
+  const nearbyConfirmedResistance = latestResistanceTestZone ? pastResistances
+    .filter(zone => zone.role === "resistance" && !["broken", "role-reversed", "invalidated"].includes(zone.status))
+    .map(zone => ({ zone, distance: Math.abs((zone.low + zone.high - latestResistanceTestZone.low - latestResistanceTestZone.high) / 2),
+      tolerance: Math.max(zone.mergeDistance || 0, latestResistanceTestZone.high * 0.0004, (latestResistanceTestZone.high - latestResistanceTestZone.low) * 2) }))
+    .filter(item => item.distance <= item.tolerance)
+    .sort((a, b) => a.distance - b.distance || b.zone.touches - a.zone.touches)[0]?.zone ?? null : null;
+  const latestResistance = nearbyConfirmedResistance ? {
+    ...nearbyConfirmedResistance,
+    id: `${nearbyConfirmedResistance.id}-current-test`,
+    firstTime: Math.min(nearbyConfirmedResistance.firstTime, latestResistanceTestZone.firstTime),
+    lastTime: latestResistanceTestZone.lastTime,
+    low: Math.min(nearbyConfirmedResistance.low, latestResistanceTestZone.low),
+    high: Math.max(nearbyConfirmedResistance.high, latestResistanceTestZone.high),
+    developing: true,
+    confirmedTouches: nearbyConfirmedResistance.touches,
+  } : latestResistanceTestZone;
+  const visiblePastResistances = showPastResistance && visible.length ? pastResistances.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
+    && zone.high >= min && zone.low <= max && zone.id !== nearbyConfirmedResistance?.id
+    && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
+    .sort((a, b) => Math.abs((a.low + a.high) / 2 - (visible.at(-1)?.close ?? 0)) - Math.abs((b.low + b.high) / 2 - (visible.at(-1)?.close ?? 0)) || b.lastTime - a.lastTime).slice(0, 1) : [];
   const axisWidth = Math.max(90, Math.max(min.toFixed(2).length, max.toFixed(2).length) * 7.5 + 24);
   const plotWidth = Math.max(60, width - axisWidth - 16);
   const height = expanded ? Math.max(480, Math.round(viewportHeight * 0.78)) : width < 560 ? 460 : 500;
@@ -455,7 +477,8 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
               ? `${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"} (Confirmed)`
               : zone.reversal?.state === "pending" ? `Role Reversal Pending · ${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"}`
                 : zone.reversal?.state === "invalidated" ? `Role Reversal Invalidated · ${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"}` : null;
-            const fullLabel = zone.status === "testing" ? "Potential resistance · testing"
+            const fullLabel = Number.isFinite(zone.confirmedTouches) ? `Resistance · ${zone.confirmedTouches} confirmed reactions · testing`
+              : zone.status === "testing" ? "Potential resistance · testing"
               : zone.developing ? `Potential resistance · ${zone.touches} reaction`
               : reversalLabel ? `${reversalLabel} · ${zone.touches} reactions`
                 : `${zone.chartRole === "support" ? "Past support" : "Past resistance"} · ${zone.touches} reactions · ${statusLabel}`;
