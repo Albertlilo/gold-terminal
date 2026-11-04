@@ -168,7 +168,7 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <details className="analysis-method-details"><summary>Setup definitions</summary><p className="analysis-method">Support Bounce: support touch + bullish close. Resistance Rejection: resistance touch + bearish close. Buy Watch: resistance break + successful retest. Sell Watch: support break + failed retest. Macro stays separate; signals do not place trades.</p></details>
       </section>
       <PushNotifications now={now} />
-      <SignalReview key={PRIMARY_ANALYSIS_INTERVAL} audit={audit} rows={history[PRIMARY_ANALYSIS_INTERVAL]} interval={PRIMARY_ANALYSIS_INTERVAL} now={now} />
+      <SignalReview key={PRIMARY_ANALYSIS_INTERVAL} audit={audit} />
       <section className="terminal-card upcoming-coverage" aria-labelledby="upcoming-coverage-title">
         <div className="terminal-panel-title"><h2 id="upcoming-coverage-title">News &amp; Market Context</h2><span>COMING NEXT</span></div>
         <p className="coverage-status"><strong>News risk: not assessed</strong> · Live coverage is not connected yet.</p>

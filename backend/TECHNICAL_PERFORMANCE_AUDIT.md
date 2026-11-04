@@ -18,7 +18,6 @@ The previous engine selected support and resistance mostly by side-of-price and 
 - Market-structure break detection now uses a price-indexed segment tree. Each confirmed swing is inserted and retired once; range queries find crossed levels without rescanning every prior swing for every candle.
 - Saved-signal cache fingerprints are checked before analysis. Identical completed-candle input avoids recomputing the full replay in the same Node process; changed input still triggers recalculation and revision handling.
 - Zone readouts include detection timeframe, boundaries, reaction count, quality, confirmation rule, and invalidation price. Daily and 1H structure are shown separately from the 5M setup check; this is a technical context view only and does not blend a score or read macro data.
-- The backtest accepts separate round-trip spread, commission, and slippage costs, while retaining the existing `cost` option for compatibility.
 - Rule version advanced to `zones-structure-risk-v19`; existing audit records remain untouched and new decisions use the new version key.
 
 ## Complexity review
@@ -31,10 +30,9 @@ The previous engine selected support and resistance mostly by side-of-price and 
 | Zone clustering | Price sort, then per-role last-cluster comparison | O(p log p), where p ≤ 240 pivots in the 120-candle window |
 | Swing extraction | Fixed-radius neighborhood scan | O(n) time, O(p) swing storage |
 | BOS/CHoCH crossing | Prior implementation scanned all available swing levels per candle: O(n × p), worst-case O(n²). New price-range segment tree: O((n+p) log p), O(p) tree/index space |
-| Backtest | Replays `analyseCandles` on each candle prefix; max 2,000 completed candles | Approximately O(N² log N) worst-case due to repeated prefix scans/index construction, plus O(N) prefix-copy working memory. This is the clearest remaining CPU bottleneck; optimize incrementally only after profiling typical 500–2,000 candle runs |
 | Mongo candle reads | One indexed read, 500 rows maximum; exact requests coalesce in-process | Index-backed O(log n + 500), assuming the existing compound index is present |
 
-Frontend analysis is capped at 1,200 candles; backend history pages are 500; the backtest caps at 2,000. A million-candle structure benchmark is a stress test of the pure structure scanner, not a supported full-dashboard input.
+Frontend analysis is capped at 1,200 candles; backend history pages are 500. A million-candle structure benchmark is a stress test of the pure structure scanner, not a supported full-dashboard input.
 
 ## MongoDB index audit
 
@@ -56,9 +54,9 @@ One local run (Node v24.11.0, Windows x64; deterministic synthetic prices):
 
 The full technical analyzer processed the maximum frontend window (1,200 candles) in 35.06 ms in that run. These are single-run local timings, not service latency or a statistical benchmark. The 10k/100k/1M figures measure the pure market-structure scan only; the UI analyzer intentionally caps input at 1,200 rows. The deterministic market-structure parity test compared the optimized output to the prior chronological algorithm on 120 seeded histories; all matched.
 
-## Backtest and signal reliability
+## Backtesting feature removal
 
-The existing replay uses completed candles only, enters on the next candle, treats ambiguous OHLC stop/target bars conservatively (stop first), and records win rate, average planned R:R, expectancy, max drawdown, and sample count. Before this change it accepted only one aggregate friction number. Separate spread, commission, and slippage price-equivalent costs are now supported and reported in the result. No Atlas-period backtest was run because historical data could not be read. No win-rate improvement is claimed.
+The user-facing historical replay and its replay engine/tests have been removed. The previous replay repeated full analysis on each candle prefix, had an approximately O(N² log N) worst case, and was not part of routine dashboard loading. Removing it reduces unnecessary code and prevents users mistaking a small, assumption-sensitive historical sample for a forecast. The technical audit log and manual risk-to-reward calculator remain; neither places trades.
 
 ## API, concurrency, and infrastructure
 
@@ -91,7 +89,7 @@ No API concurrency benchmark was run because there is no isolated staging servic
 ### Remaining CPU and memory profile
 
 - The ordinary chart path is bounded to 1,200 candles in the frontend; historical API pages are 500 candles. The structure scanner benchmark scaled near-linearly over the tested synthetic sizes. Its 1M-candle result is a scanner stress test, not a supported end-to-end API or chart workload.
-- Backtest loops through candles and calls the full analyzer on each prefix (`candles.slice(0, i)`). Each prefix does an O(i log i) structure scan plus O(i) zone replay, making the full replay approximately O(N² log N) time, with O(N) prefix-copy working memory at each step. The 2,000-candle cap bounds this cost but does not remove it; the backtest is the leading identified CPU hotspot. A stateful chronological replay can reduce repeated work, but should be validated for exact output parity before replacing it.
+- The historical replay engine and its quadratic-prefix loop have been removed from the product. It did not run during normal dashboard views, so its removal simplifies the technical page and avoids replay CPU work when a user explicitly opened that section; it does not change live quote or chart-history request latency.
 - For normal page retrieval, query work should be approximately O(log D + 500) when the compound index is used, where D is collection size. Candle normalization/deduplication/sort is O(500 log 500) per fetched provider page. The signal input fingerprint is O(500) per latest request; identical input then avoids replay in that process. The in-memory cache is not shared between instances.
 - The principal scalability risk is repeated calculation/provider work across multiple processes, not the 1M-row market-structure scan. Today’s one-instance metrics do not justify adding Redis, a worker, or a larger Render plan.
 
@@ -99,7 +97,7 @@ No API concurrency benchmark was run because there is no isolated staging servic
 
 - The backend now maintains one Twelve Data WebSocket connection for XAU/USD and fans fresh ticks to authenticated browser clients through a Server-Sent Events endpoint. This uses one provider connection regardless of the number of viewers, up to a local cap of 100 SSE clients.
 - When a fresh stream quote exists, dashboard snapshots use it and skip the REST quote request. If the stream is disabled, unavailable, stale, or rejected by the account’s symbol entitlement, the existing REST quote path remains the fallback. The screenshots show zero WebSocket usage and a one-connection allowance, but do not establish that XAU/USD is included in the Basic-plan trial symbols; production logs/UI must confirm subscription acceptance.
-- This does not remove the need for Twelve Data: the stream provides live price ticks, while `/api/gold/history` still uses the Twelve Data REST time-series endpoint for OHLC candles and backfill. FRED and other macro readings remain on their existing data paths. The ordinary O(N² log N) backtest remains capped at 2,000 candles and is not run for each dashboard view.
+- This does not remove the need for Twelve Data: the stream provides live price ticks, while `/api/gold/history` still uses the Twelve Data REST time-series endpoint for OHLC candles and backfill. FRED and other macro readings remain on their existing data paths.
 - Local development does not open a provider socket by default, avoiding competition with the account’s single production connection. Node.js 22.15 or later is required for the built-in WebSocket client; no extra runtime package was added. Browser quote updates are throttled to at most once per second, while the macro dashboard refresh interval remains unchanged.
 
 ### Prioritized recommendations and sizing
@@ -107,7 +105,7 @@ No API concurrency benchmark was run because there is no isolated staging servic
 1. **Verify Atlas first:** run the read-only index/explain script from an environment with working Atlas network access. Confirm the compound candle index is `IXSCAN`, and `totalDocsExamined` stays close to `nReturned` (maximum 500 for this route). Record collection size, time coverage, Atlas tier and connection limit. Do not create duplicate indexes until this is known.
 2. **Benchmark staging before scaling:** create or use a non-production service and read-only clone; perform the staged 1/5/20/50 concurrency test above. Current Render hourly usage is low, but there are no request-latency samples, so capacity is unknown.
 3. **If duplicate computation shows up:** calculate each timeframe once when its candle closes, persist the signal snapshot keyed by `(ruleVersion, interval, candleTime, inputHash)`, and have web requests read it. If more than one web instance is needed, move deduplication to a shared cache/lease only after the benchmark proves it necessary.
-4. **If backtest is slow:** replace prefix replay with an incremental chronological state machine and compare all metrics/signals with the current implementation on fixed datasets before rollout.
+4. **Keep routine technical work bounded:** retain the existing candle caps and measure before adding new per-request analysis.
 5. **Render sizing:** keep the current single 0.15-CPU/512-MiB backend while staged p95 remains within the product’s chosen target and observed CPU/memory remain comfortably below limits. For a first higher-traffic trial, test a paid 1-vCPU/2-GiB instance or equivalent against staging, then add a second instance only if concurrency/availability needs it; budget Mongo pools per instance (`5 × instances`) against Atlas limits. These are conservative test starting points, not a capacity guarantee or a claim that an upgrade is currently needed. Do not change production infrastructure from this report alone.
 
 ### Verification run for this audit

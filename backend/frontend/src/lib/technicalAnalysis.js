@@ -48,7 +48,7 @@ export function analyseCandles(rows, interval, now, config = DEFAULT_TECHNICAL_C
     marketStructure: result.marketStructure, move, close: last.close,
     stale: now / 1000 - (last.time + duration) > Math.max(duration * 2, 900),
     support: support?.low ?? null, resistance: resistance?.high ?? null,
-    // Retired levels remain available to the audit/backtest result, but the
+    // Retired levels remain available to the audit record, but the
     // live chart only receives the current validated structure. Showing old
     // levels beside active ones makes the technical read look contradictory.
     zones: [displayedSupport, displayedFormingSupport, displayedResistance].filter(Boolean),

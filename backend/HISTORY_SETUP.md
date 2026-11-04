@@ -77,10 +77,8 @@ Identical concurrent requests coalesce; repeated requests for the same input reu
 
 Audit records have no automatic expiry. They consume Atlas storage; monitor the existing free cluster's capacity. No unrelated collections are modified. Completed market data can be corrected by its provider: immutable observed decisions do not imply the feed itself is immutable or that reconstructions from a different historical window must match.
 
-## Offline replay and risk calculator
-Replay is user-triggered and uses only already-loaded candles, with a 2,000-candle limit. Each signal receives only the completed prefix available before entry. Entries use the following contiguous candle's open, within the estimated session. The experimental execution model uses a hard stop at the opposite edge of the retested zone, a 2R target, and a 10-bar holding limit. These are explicit simulation assumptions, distinct from the watch setup's close-based invalidation rule. One trade at a time, stop-first for ambiguous OHLC bars, worse opening fill for gap-through stops, fixed user-entered round-trip costs per ounce. Open trades are excluded from closed-trade statistics. There are no provider requests when running the replay.
-
-This is technical-only testing, not a macro strategy performance claim. Macro-filtered backtests require historical point-in-time releases/vintages and publication timestamps; today's macro score must never be applied retrospectively. The calculator uses manually supplied entry, stop and target prices and excludes costs. Neither tool places orders.
+## Risk-to-reward calculator
+The technicals page includes a manual risk-to-reward calculator. It uses entry, stop, and target prices supplied by the user, excludes trading costs, and does not choose a setup or place orders. Historical candle replay has been removed.
 
 ## Coming next
 Economic calendar alerts, dedicated DXY coverage and source-linked geopolitical headlines are explicitly pending provider selection. News risk is unknown, not low. No placeholder events, fabricated DXY values, notifications or news-driven score changes are enabled. Confirm licensing, symbol coverage, timestamps, historical vintages and rate limits before selecting a paid provider.
@@ -92,7 +90,7 @@ Run the Node test files under `backend/test` and `backend/frontend/test`, fronte
 
 Retests can now span multiple completed candles. Zone geometry and the 0.10% trigger clearance are unchanged. The breakout candle cannot count as its own retest. A later zone touch is remembered; that candle or a subsequent completed candle can recover beyond the frozen trigger. Each phase expires when ten subsequent bars have elapsed: from the break while awaiting first touch, from first touch while awaiting recovery, and from confirmation once recovered. Repeated touches never extend the timer. A completed close through the far zone edge invalidates immediately. A confirmed watch pauses when its close no longer holds beyond the trigger; recovery within the same confirmation phase does not reset its original confirmation timestamp or expiry.
 
-The technicals page shows the phase and remaining bar steps. These are elapsed bar deadlines, not guaranteed entry time or broker stop instructions. This rule revision has correctness tests but no demonstrated profitability advantage. Offline replay automatically uses the revised engine, so performance results should not be compared to old runs without identifying the rule version.
+The technicals page shows the phase and remaining bar steps. These are elapsed bar deadlines, not guaranteed entry time or broker stop instructions. This rule revision has correctness tests but no demonstrated profitability advantage.
 
 New audit keys use zones-retest-v2; v1 records remain unchanged. Deploy backend and frontend together. The frontend blocks the combined signal if the backend reports saved v1 rules. Support/resistance labels and watch labels are restored on the chart; values outside the displayed price range remain in the legend, and Include watch levels & zones brings them onto the scale.
 
