@@ -45,6 +45,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   const [fitLevels, setFitLevels] = useState(false);
   const [showPastSupport, setShowPastSupport] = useState(false);
   const [showPastResistance, setShowPastResistance] = useState(false);
+  const [priceZoom, setPriceZoom] = useState(1);
   const [candles, setCandles] = useState(initialCandles);
   const [formingCandle, setFormingCandle] = useState(null);
   const [status, setStatus] = useState(initialCandles.length ? "Showing saved candles." : "Loading saved candles…");
@@ -269,7 +270,12 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
   }
   const low = lows.length ? Math.min(...lows) : 0;
   const high = highs.length ? Math.max(...highs) : 1;
-  const { min, max, quiet } = candlePriceBounds(low, high, magnify);
+  const fittedBounds = candlePriceBounds(low, high, magnify);
+  const priceCenter = (fittedBounds.min + fittedBounds.max) / 2;
+  const priceSpan = (fittedBounds.max - fittedBounds.min) / priceZoom;
+  const min = priceCenter - priceSpan / 2;
+  const max = priceCenter + priceSpan / 2;
+  const { quiet } = fittedBounds;
   const visiblePastSupports = showPastSupport && visible.length ? pastSupports.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
     && zone.high >= min && zone.low <= max && !bands.some(band => band.active !== false && Math.abs((band.low + band.high - zone.low - zone.high) / 2) <= Math.max(band.high - band.low, zone.high - zone.low)))
     .sort((a, b) => Math.abs((a.low + a.high) / 2 - (visible.at(-1)?.close ?? 0)) - Math.abs((b.low + b.high) / 2 - (visible.at(-1)?.close ?? 0)) || b.lastTime - a.lastTime).slice(0, 1) : [];
@@ -288,11 +294,12 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     .sort((a, b) => b.lastTime - a.lastTime)[0] || null;
   const axisWidth = Math.max(90, Math.max(min.toFixed(2).length, max.toFixed(2).length) * 7.5 + 24);
   const plotWidth = Math.max(60, width - axisWidth - 16);
-  const height = expanded ? Math.max(440, Math.round(viewportHeight * 0.68)) : width < 560 ? 380 : 440;
+  const height = expanded ? Math.max(480, Math.round(viewportHeight * 0.78)) : width < 560 ? 460 : 500;
   const top = 24, bottom = height - 38;
   const plotHeight = bottom - top;
   const y = price => bottom - ((price - min) / (max - min)) * plotHeight;
-  const step = plotWidth / Math.max(1, visible.length);
+  const candleWidth = plotWidth * (endTime === null ? 0.86 : 1);
+  const step = candleWidth / Math.max(1, visible.length);
   const x = index => 8 + (index + 0.5) * step;
   const historicalAnnotations = [...visiblePastSupports.map(zone => ({ ...zone, chartRole: "support" })), ...visiblePastResistances.map(zone => ({ ...zone, chartRole: "resistance" })),
     ...(latestResistance ? [{ ...latestResistance, chartRole: "resistance", developing: true }] : [])]
@@ -327,13 +334,26 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
       const [a, b] = [...pointers.current.values()];
       pinchRef.current = { distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), count };
       dragRef.current = null;
-    } else { dragRef.current = { x: event.clientX }; selectAt(event); }
+    } else {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const px = (event.clientX - rect.left) * width / rect.width;
+      dragRef.current = px > plotWidth + 8
+        ? { kind: "price-scale", y: event.clientY, zoom: priceZoom }
+        : { kind: "chart", x: event.clientX };
+      selectAt(event);
+    }
   }
   function pointerMove(event) {
     if (pointers.current.has(event.pointerId)) pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.current.size >= 2 && pinchRef.current) {
       const [a, b] = [...pointers.current.values()];
       setCount(clampCount(pinchRef.current.count * pinchRef.current.distance / Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))));
+      setHover(null);
+      return;
+    }
+    if (dragRef.current?.kind === "price-scale") {
+      const delta = dragRef.current.y - event.clientY;
+      setPriceZoom(Math.max(0.5, Math.min(6, dragRef.current.zoom * Math.exp(delta * 0.004))));
       setHover(null);
       return;
     }
@@ -352,7 +372,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     dragRef.current = remaining ? { x: remaining.x } : null;
   }
   function resetView() {
-    setEndTime(null); setCount(width < 560 ? 40 : 80); setHover(null); setMagnify(true); setFitLevels(false);
+    setEndTime(null); setCount(width < 560 ? 40 : 80); setHover(null); setMagnify(true); setFitLevels(false); setPriceZoom(1);
   }
 
   return (
@@ -375,7 +395,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
       <div className="candle-ohlc" aria-live="off">
         {selected ? <><time>{stamp(selected.time)} UTC{liveQuoteFresh && selected.time === formingCandle?.time && endTime === null ? selected.partial ? " · Live bar forming · partial" : " · Live bar forming" : ""}</time><span>Open <strong>{selected.open.toFixed(2)}</strong></span><span>High <strong>{selected.high.toFixed(2)}</strong></span><span>Low <strong>{selected.low.toFixed(2)}</strong></span><span>Close <strong>{selected.close.toFixed(2)}</strong></span></> : "Waiting for historical prices…"}
       </div>
-      <div ref={chartRef} className="candle-surface" tabIndex={0} role="group" aria-label="Gold candlestick chart. Drag to pan, pinch or scroll to zoom. Arrow keys pan; plus and minus zoom."
+      <div ref={chartRef} className="candle-surface" tabIndex={0} role="group" aria-label="Gold candlestick chart. Drag to pan; pinch or scroll to zoom horizontally. Drag the right price scale to zoom vertically. Arrow keys pan; plus and minus zoom."
         onKeyDown={event => {
           if (["ArrowLeft", "ArrowRight", "+", "=", "-", "Home"].includes(event.key)) event.preventDefault();
           if (event.key === "ArrowLeft") moveBy(-10);
@@ -451,7 +471,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
         </svg>
       </div>
       <p className="candle-status" role="status">{status}</p>
-      <p className="candle-hint">{visible.length} candles shown · UTC · Drag to pan; pinch or scroll to zoom. Select a candle to inspect its prices.</p>
+      <p className="candle-hint">{visible.length} candles shown · UTC · Drag to pan; pinch or scroll to zoom horizontally. Drag the right price scale to zoom vertically. Select a candle to inspect its prices.</p>
       <details className="chart-notes">
         <summary>Chart and data notes</summary>
         {(showPastSupport || showPastResistance) && <p className="candle-hint">Past reaction zones use completed candles. Broken zones only become the opposite role after a completed retest holds; pending or invalidated reversals remain historical references, not trade signals.</p>}
