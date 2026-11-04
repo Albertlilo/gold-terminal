@@ -10,6 +10,7 @@ import HomePage from "./pages/HomePage";
 import GoldScorePage from "./pages/GoldScorePage";
 import MacroPage from "./pages/MacroPage";
 import MarketsPage from "./pages/MarketsPage";
+import { useGoldQuoteStream } from "./lib/useGoldQuoteStream";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
@@ -25,6 +26,7 @@ function App() {
   const retryDashboard = useRef(() => {});
   const [activePage, setActivePage] = useState(() => new URLSearchParams(window.location.search).get('page') === 'technicals' ? 'technicals' : 'home');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const { quote: liveQuote, connected: quoteStreamConnected } = useGoldQuoteStream();
 
   const previousGoldPrice = useRef(null);
 
@@ -35,6 +37,27 @@ function App() {
 
   const [sessionHigh, setSessionHigh] = useState(null);
   const [sessionLow, setSessionLow] = useState(null);
+
+  useEffect(() => {
+    const price = liveQuote?.price;
+    if (!Number.isFinite(price) || price <= 0 || liveQuote.priceSource !== "websocket") return;
+    const receivedAt = Date.parse(liveQuote.receivedAt);
+    if (!Number.isFinite(receivedAt) || Date.now() - receivedAt > 90000) return;
+
+    if (previousGoldPrice.current !== null) {
+      const change = price - previousGoldPrice.current;
+      setGoldChange(change);
+      setGoldChangePercent((change / previousGoldPrice.current) * 100);
+      setGoldMovement(change > 0 ? "↑ Rising" : change < 0 ? "↓ Falling" : "→ Flat");
+    }
+    previousGoldPrice.current = price;
+    setGoldHistory(history => [
+      ...history.slice(-19),
+      { price, time: new Date(receivedAt).toLocaleTimeString() },
+    ]);
+    setSessionHigh(high => high === null ? price : Math.max(high, price));
+    setSessionLow(low => low === null ? price : Math.min(low, price));
+  }, [liveQuote]);
 
   useEffect(() => {
     let disposed = false;
@@ -154,8 +177,10 @@ function App() {
     return () => clearInterval(clockInterval);
   }, []);
 
-  const goldPrice =
-    typeof dashboardData?.market?.xauusd?.price === "number"
+  const liveQuoteAge = liveQuote?.receivedAt ? currentTime.getTime() - Date.parse(liveQuote.receivedAt) : Infinity;
+  const goldPrice = Number.isFinite(liveQuote?.price) && liveQuoteAge <= 90000
+    ? liveQuote.price.toFixed(2)
+    : typeof dashboardData?.market?.xauusd?.price === "number"
       ? dashboardData.market.xauusd.price.toFixed(2)
       : dashboardError || dashboardData ? "Unavailable" : "Loading...";
 
@@ -281,6 +306,8 @@ function App() {
             goldMovement={displayedMovement}
             goldChange={displayedChange}
             goldChangePercent={displayedChangePercent}
+            liveQuote={liveQuoteAge <= 90000 ? liveQuote : null}
+            quoteStreamConnected={quoteStreamConnected}
           />
         )}
 

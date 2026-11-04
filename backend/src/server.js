@@ -36,7 +36,11 @@ app.use((req, res) => res.status(404).json({ message: 'Endpoint not found.' }));
 app.use(safeErrors);
 
 const stopPushScheduler = require("./services/pushRuntime").startScheduler();
-process.once('SIGTERM', stopPushScheduler);
+const { priceStream } = require("./services/marketService");
+priceStream.start();
+const stopServices = () => { stopPushScheduler(); priceStream.stop(); };
+process.once('SIGTERM', stopServices);
+process.once('SIGINT', stopServices);
 
 app.listen(process.env.PORT, () => {
     console.log(`Server is running on port ${process.env.PORT}`);
