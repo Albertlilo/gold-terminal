@@ -2,9 +2,12 @@ const { getGoldSession } = require("../services/goldSession");
 const express = require("express");
 const axios = require("axios");
 const store = require("../services/candleStore");
+const { getMarketSnapshot, priceStream } = require("../services/marketService");
 const { createHistoryService, normalizeCandles, PAGE_SIZE } = require("../services/candleHistoryService");
 const router = express.Router();
 router.use(require('../services/accountRuntime').requirePremium);
+const quoteClients = new Set();
+const MAX_QUOTE_STREAM_CLIENTS = 100;
 const { createSignalAuditService } = require("../services/signalAuditService");
 let auditService;
 let auditSessionCandles;
@@ -65,6 +68,57 @@ router.get("/gold/history", async (req, res) => {
     res.status(status).json({ message: error.status ? error.message
       : "Saved history could not be reached on this attempt. Please retry; this does not mean your history was deleted." });
   }
+});
+
+router.get("/gold/stream", (req, res) => {
+  if (quoteClients.size >= MAX_QUOTE_STREAM_CLIENTS) {
+    return res.status(503).json({ message: "Live price stream is at capacity. Please retry shortly." });
+  }
+
+  res.status(200).set({
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  res.flushHeaders();
+  quoteClients.add(res);
+
+  const send = (event, data) => {
+    if (res.writableEnded || res.destroyed) return;
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
+    catch { /* Connection close handler releases the stream slot. */ }
+  };
+  const sendStatus = () => send("status", priceStream.status());
+  const unsubscribe = priceStream.subscribe(message => {
+    if (message.type === "status") sendStatus();
+    else if (message.type === "quote") send("quote", message.quote);
+  });
+  sendStatus();
+  const latest = priceStream.readLatest();
+  if (latest) send("quote", latest);
+  else getMarketSnapshot().then(snapshot => {
+    const quote = snapshot?.xauusd;
+    if (Number.isFinite(quote?.price)) send("quote", {
+      price: quote.price,
+      receivedAt: quote.receivedAt,
+      priceSource: quote.priceSource,
+    });
+  }).catch(() => {});
+
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded && !res.destroyed) {
+      res.write(": keep-alive\n\n");
+      sendStatus();
+    }
+  }, 15000);
+  heartbeat.unref?.();
+
+  res.on("close", () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+    quoteClients.delete(res);
+  });
 });
 
 module.exports = router;

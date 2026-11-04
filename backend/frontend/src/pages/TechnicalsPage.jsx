@@ -25,7 +25,7 @@ function safeAnalyseCandles(rows, interval, now) {
   }
 }
 
-export default function TechnicalsPage({ dashboardData, currentTime, lastSuccessAt, dashboardError, goldPrice }) {
+export default function TechnicalsPage({ dashboardData, currentTime, lastSuccessAt, dashboardError, goldPrice, liveQuote, quoteStreamConnected }) {
   const [chartInterval, setChartInterval] = useState(() => {
     const requested = new URLSearchParams(window.location.search).get('interval');
     return Object.hasOwn(TIMEFRAMES, requested) ? requested : '1h';
@@ -92,14 +92,15 @@ export default function TechnicalsPage({ dashboardData, currentTime, lastSuccess
         <div className="terminal-symbol"><span>XAUUSD</span><time dateTime={currentTime.toISOString()}>{currentTime.toLocaleString()}</time></div>
       </header>
       <div className="terminal-intro"><h1>Technical Analysis</h1><p>Independent Daily, 1H, and 5M technical analysis. Macro stays separate.</p><p className="analysis-method">The selected timeframe controls the technical summary, chart, levels, and risk readout.</p></div>
-      <div className="terminal-live-price"><div><span>XAUUSD · {session.isOpen ? "Latest price" : "Last available price"}</span><strong>{goldPrice ?? "—"}<small>USD / oz</small></strong></div><p>{!session.isOpen ? "Market closed · price held" : dashboardError || !Number.isFinite(dashboardData?.market?.xauusd?.price) || dashboardData?.market?.xauusd?.stale ? "Waiting for a fresh quote" : "Live price · checked every 30 seconds"}</p></div>
+      <div className="terminal-live-price"><div><span>XAUUSD · {session.isOpen ? "Latest price" : "Last available price"}</span><strong>{goldPrice ?? "—"}<small>USD / oz</small></strong></div><p>{!session.isOpen ? "Market closed · price held" : liveQuote?.priceSource === "websocket" ? "Live price · Twelve Data stream" : dashboardError || !Number.isFinite(dashboardData?.market?.xauusd?.price) || dashboardData?.market?.xauusd?.stale ? "Waiting for a fresh quote" : "Live price · REST fallback"}</p></div>
       <div className={`session-notice ${session.isOpen ? "" : "session-closed"}`} role="status">
         <span className="session-dot" /> <strong>{session.label}</strong>
         <span>{session.isOpen ? "Scheduled hours · New York time" : "Price readings paused · last available prices shown"}</span>
       </div>
       {dashboardData?.market?.xauusd?.priceSource === "saved_candle" && <p className="analysis-method">Saved candle reference · not a live quote or an official session close. Candle ended {new Date(dashboardData.market.xauusd.receivedAt).toLocaleString()}. Provider data can include out-of-session timestamps.</p>}
-      <div className="data-receipts" aria-label="Data timestamps"><span>Quote received: <strong>{stamp(dashboardData?.market?.xauusd?.receivedAt)}</strong></span><span>Dashboard last received: <strong>{stamp(lastSuccessAt)}</strong></span><span>{TIMEFRAMES[chartInterval].label} candle analysed: <strong>{analysis.lastTime ? stamp((analysis.lastTime + TIMEFRAMES[chartInterval].seconds) * 1000) : "Not available"}</strong></span></div>
-      {dashboardData?.market?.xauusd?.fallback && <p className="coverage-status">Quote fallback active · showing the last available price, not a fresh live quote.</p>}
+      <div className="data-receipts" aria-label="Data timestamps"><span>Quote received: <strong>{stamp(liveQuote?.receivedAt ?? dashboardData?.market?.xauusd?.receivedAt)}</strong></span><span>Dashboard last received: <strong>{stamp(lastSuccessAt)}</strong></span><span>{TIMEFRAMES[chartInterval].label} candle analysed: <strong>{analysis.lastTime ? stamp((analysis.lastTime + TIMEFRAMES[chartInterval].seconds) * 1000) : "Not available"}</strong></span></div>
+      {!liveQuote && quoteStreamConnected && <p className="coverage-status">WebSocket connected · waiting for a fresh XAU/USD update.</p>}
+      {!liveQuote && dashboardData?.market?.xauusd?.fallback && <p className="coverage-status">Quote fallback active · showing the last available price, not a fresh live quote.</p>}
       <section className="terminal-summary technical-only-summary" aria-label="Signal summary">
         <article className="terminal-card summary-card tone-neutral"><span className="terminal-eyebrow">↗ &nbsp; Technical State</span><h2>{analysis.state}</h2><p>{TIMEFRAMES[chartInterval].label} · selected analysis · completed candles</p><p>{analysis.state === "Between zones" ? "No confirmation yet" : analysis.stale ? "Delayed candle data" : "Volatility-adjusted break clearance"}</p></article>
         <article className={`terminal-card summary-card tone-${setupStage.tone}`}><span className="terminal-eyebrow">◉ &nbsp; Setup Stage</span><h2>{setupStage.label}</h2><p>{setupStage.detail}</p>{(analysis.stale || !session.isOpen || versionMismatch) && <p>Historical or unavailable for a fresh signal right now.</p>}</article>

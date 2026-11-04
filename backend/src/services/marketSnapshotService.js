@@ -6,7 +6,7 @@ function savedCandleQuote(rows, now = Date.now()) {
   return last ? { price: last.close, time: new Date((last.time + 300) * 1000).toISOString() } : null;
 }
 
-function createMarketSnapshotService({ fetchPrice, readSavedPrice, now = Date.now, session = getGoldSession }) {
+function createMarketSnapshotService({ fetchPrice, readSavedPrice, readStreamPrice, now = Date.now, session = getGoldSession }) {
   let lastPrice = null, lastAt = null, lastFetch = -Infinity, pending = null;
   let wasClosed = false, closedRead = false, savedPending = null, priceSource = null;
   let providerFailed = false;
@@ -27,13 +27,27 @@ function createMarketSnapshotService({ fetchPrice, readSavedPrice, now = Date.no
     } else {
       closedRead = false;
       if (wasClosed) { lastFetch = -Infinity; wasClosed = false; }
-      if (!pending && now() - lastFetch >= 30000) {
+      let streamed = null;
+      try { streamed = readStreamPrice?.(); } catch { /* Continue with the REST quote fallback. */ }
+      if (Number.isFinite(streamed?.price) && streamed.price > 0
+        && Number.isFinite(Date.parse(streamed.receivedAt))
+        && now() - Date.parse(streamed.receivedAt) <= 90000) {
+        lastPrice = streamed.price;
+        lastAt = streamed.receivedAt;
+        priceSource = "websocket";
+        providerFailed = false;
+      } else if (!pending && now() - lastFetch >= 30000) {
         lastFetch = now();
+        const requestStartedAt = now();
         pending = (async () => {
           const price = await fetchPrice();
           if (!Number.isFinite(price) || price <= 0) throw new Error("Gold quote unavailable");
           // A response arriving after the close must not move the frozen price.
-          if (session(now()).isOpen) { lastPrice = price; lastAt = new Date(now()).toISOString(); priceSource = "quote"; }
+          // A REST request started before the latest stream tick cannot overwrite it.
+          const streamAt = priceSource === "websocket" ? Date.parse(lastAt) : -Infinity;
+          if (session(now()).isOpen && streamAt < requestStartedAt) {
+            lastPrice = price; lastAt = new Date(now()).toISOString(); priceSource = "quote";
+          }
           providerFailed = false;
         })().catch(async () => {
           providerFailed = true;
