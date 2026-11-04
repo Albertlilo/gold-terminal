@@ -314,9 +314,10 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     .sort((a, b) => b.lastTime - a.lastTime)[0] || null;
   // A one-bar test near an already-confirmed resistance should inherit that
   // zone's boundaries and independent reaction count instead of replacing it
-  // with a misleading single-reaction marker.
+  // with a misleading single-reaction marker. Broken or invalidated zones
+  // remain historical references; a fresh test does not restore their status.
   const nearbyConfirmedResistance = latestResistanceTestZone ? pastResistances
-    .filter(zone => zone.role === "resistance" && !["broken", "role-reversed", "invalidated"].includes(zone.status))
+    .filter(zone => zone.role === "resistance")
     .map(zone => ({ zone, distance: Math.abs((zone.low + zone.high - latestResistanceTestZone.low - latestResistanceTestZone.high) / 2),
       tolerance: Math.max(zone.mergeDistance || 0, latestResistanceTestZone.high * 0.0004, (latestResistanceTestZone.high - latestResistanceTestZone.low) * 2) }))
     .filter(item => item.distance <= item.tolerance)
@@ -330,6 +331,8 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
     high: Math.max(nearbyConfirmedResistance.high, latestResistanceTestZone.high),
     developing: true,
     confirmedTouches: nearbyConfirmedResistance.touches,
+    matchedHistoricalStatus: nearbyConfirmedResistance.status,
+    currentTestOfHistorical: true,
   } : latestResistanceTestZone;
   const visiblePastResistances = showPastResistance && visible.length ? pastResistances.filter(zone => zone.lastTime >= visibleStart && zone.firstTime <= visibleEnd
     && zone.high >= min && zone.low <= max && zone.id !== nearbyConfirmedResistance?.id
@@ -477,7 +480,8 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
               ? `${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"} (Confirmed)`
               : zone.reversal?.state === "pending" ? `Role Reversal Pending · ${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"}`
                 : zone.reversal?.state === "invalidated" ? `Role Reversal Invalidated · ${zone.chartRole === "resistance" ? "Resistance → Support" : "Support → Resistance"}` : null;
-            const fullLabel = Number.isFinite(zone.confirmedTouches) ? `Resistance · ${zone.confirmedTouches} confirmed reactions · testing`
+            const fullLabel = Number.isFinite(zone.confirmedTouches)
+              ? `${zone.matchedHistoricalStatus === "active" ? "Resistance" : "Historical resistance"} · ${zone.confirmedTouches} reactions · testing`
               : zone.status === "testing" ? "Potential resistance · testing"
               : zone.developing ? `Potential resistance · ${zone.touches} reaction`
               : reversalLabel ? `${reversalLabel} · ${zone.touches} reactions`
@@ -490,10 +494,14 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
               : zone.chartRole === "support" ? zone.active ? "#70d69c" : "#477f60" : zone.active ? "#ef7b7b" : "#8a4e4e";
             return <g key={zone.id}>
               <rect x={start} y={y(Math.min(max, zone.high))} width={Math.max(1, (zone.developing ? plotWidth + 8 : end) - start)} height={Math.max(1, y(Math.max(min, zone.low)) - y(Math.min(max, zone.high)))} fill={color} fillOpacity={zone.developing ? "0.035" : "0.07"} stroke={color} strokeOpacity={zone.developing ? "0.75" : "0.5"} strokeDasharray={zone.developing ? "5 4" : "3 4"} />
+              {zone.currentTestOfHistorical && <>
+                <line x1="8" x2={plotWidth + 8} y1={y(Math.min(max, zone.high))} y2={y(Math.min(max, zone.high))} stroke="#ef7b7b" strokeWidth="2" strokeOpacity="0.95" />
+                <line x1="8" x2={plotWidth + 8} y1={y(Math.max(min, zone.low))} y2={y(Math.max(min, zone.low))} stroke="#ef7b7b" strokeWidth="1" strokeOpacity="0.7" />
+              </>}
               {zone.reversal && <line x1={Math.max(start, end - 120)} x2={end} y1={desiredY} y2={desiredY} stroke={color} strokeOpacity="0.45" strokeDasharray="2 3" />}
               <rect x={Math.max(10, plotWidth - labelWidth)} y={labelY - 12} width={labelWidth} height="17" rx="3" fill="#111" fillOpacity="0.92" />
               <text x={Math.max(14, plotWidth - labelWidth + 4)} y={labelY} fill={color} fontSize="9">{label}</text>
-              <title>{zone.developing ? `${fullLabel} · forming` : fullLabel}</title>
+              <title>{zone.currentTestOfHistorical ? `${fullLabel} · prior status: ${zone.matchedHistoricalStatus}` : zone.developing ? `${fullLabel} · forming` : fullLabel}</title>
             </g>;
           })}
           {visible.map((candle, index) => {
