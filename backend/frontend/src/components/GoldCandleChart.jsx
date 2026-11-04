@@ -12,7 +12,7 @@ const stamp = time => new Date(time * 1000).toLocaleString("en-GB", {
   timeZone: "UTC", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
 });
 
-export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange, onAuditChange, initialCandles = EMPTY_LEVELS, initialLoadPending = false, onHistoryStatus, now = 0 }) {
+export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EMPTY_LEVELS, interval: selectedInterval, onIntervalChange, onCandlesChange, onAuditChange, initialCandles = EMPTY_LEVELS, initialLoadPending = false, onHistoryStatus, liveQuote = null, now = 0 }) {
   const [localInterval, setIntervalValue] = useState("5min");
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
@@ -35,17 +35,18 @@ export default function GoldCandleChart({ watchLevels = EMPTY_LEVELS, zones = EM
           </select>
         </label>
       </div>
-      <CandleView key={interval} interval={interval} expanded={expanded} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} onAuditChange={onAuditChange} initialCandles={initialCandles} initialLoadPending={initialLoadPending} onHistoryStatus={onHistoryStatus} now={now} />
+      <CandleView key={interval} interval={interval} expanded={expanded} watchLevels={watchLevels} zones={zones} onCandlesChange={onCandlesChange} onAuditChange={onAuditChange} initialCandles={initialCandles} initialLoadPending={initialLoadPending} onHistoryStatus={onHistoryStatus} liveQuote={liveQuote} now={now} />
     </section>
   );
 }
 
-function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, onAuditChange, initialCandles, initialLoadPending, onHistoryStatus, now }) {
+function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, onAuditChange, initialCandles, initialLoadPending, onHistoryStatus, liveQuote, now }) {
   const [magnify, setMagnify] = useState(true);
   const [fitLevels, setFitLevels] = useState(false);
   const [showPastSupport, setShowPastSupport] = useState(false);
   const [showPastResistance, setShowPastResistance] = useState(false);
   const [candles, setCandles] = useState(initialCandles);
+  const [formingCandle, setFormingCandle] = useState(null);
   const [status, setStatus] = useState(initialCandles.length ? "Showing saved candles." : "Loading saved candles…");
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -196,10 +197,39 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
 
   const chartCandles = useMemo(() => sessionCandles(candles, interval), [candles, interval]);
   const hiddenClosed = candles.length - chartCandles.length;
-  const visible = useMemo(() => candleWindow(chartCandles, count, endTime), [chartCandles, count, endTime]);
+  const intervalSeconds = interval === "5min" ? 300 : interval === "1day" ? 86400 : 3600;
+  const receivedAtMs = Date.parse(liveQuote?.receivedAt);
+  const quoteTimeMs = Date.parse(liveQuote?.sourceTimestamp) || receivedAtMs;
+  const currentTimeMs = Number.isFinite(now) && now > 0 ? now : 0;
+  const liveQuoteFresh = liveQuote?.priceSource === "websocket" && Number.isFinite(liveQuote?.price) && liveQuote.price > 0
+    && currentTimeMs > 0 && Number.isFinite(receivedAtMs) && currentTimeMs - receivedAtMs >= -30000 && currentTimeMs - receivedAtMs <= 90000
+    && getGoldSession(currentTimeMs).isOpen;
+  useEffect(() => {
+    const price = liveQuote?.price;
+    if (!liveQuoteFresh || !Number.isFinite(quoteTimeMs)) return;
+    const quoteTime = Math.floor(quoteTimeMs / 1000);
+    const time = Math.floor(quoteTime / intervalSeconds) * intervalSeconds;
+    // Build a display-only candle. Never merge it into stored history or technical calculations.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFormingCandle(previous => {
+      const saved = chartCandles.at(-1)?.time === time ? chartCandles.at(-1) : null;
+      const base = saved
+        ? { time, open: saved.open, high: saved.high, low: saved.low, close: saved.close, partial: false }
+        : previous?.time === time ? previous
+          : { time, open: price, high: price, low: price, close: price, partial: true };
+      return { ...base, high: Math.max(base.high, price), low: Math.min(base.low, price), close: price };
+    });
+  }, [liveQuote, liveQuoteFresh, quoteTimeMs, intervalSeconds, chartCandles]);
+  const savedVisible = useMemo(() => candleWindow(chartCandles, count, endTime), [chartCandles, count, endTime]);
+  const visible = useMemo(() => {
+    if (endTime !== null || !formingCandle || !liveQuoteFresh) return savedVisible;
+    const last = savedVisible.at(-1);
+    if (last?.time === formingCandle.time) return [...savedVisible.slice(0, -1), formingCandle];
+    if (last && last.time > formingCandle.time) return savedVisible;
+    return [...savedVisible, formingCandle].slice(-count);
+  }, [savedVisible, endTime, formingCandle, liveQuoteFresh, count]);
   const visibleStart = visible[0]?.time;
   const visibleEnd = visible.at(-1)?.time;
-  const intervalSeconds = interval === "5min" ? 300 : interval === "1day" ? 86400 : 3600;
   const completedAsOf = visibleEnd === undefined ? 0 : Math.min(visibleEnd,
     Math.floor(now / 1000 / intervalSeconds) * intervalSeconds - intervalSeconds);
   // The final saved candle may still be forming; historical markers use older rows.
@@ -343,7 +373,7 @@ function CandleView({ interval, expanded, watchLevels, zones, onCandlesChange, o
         <label><input type="checkbox" checked={showPastResistance} onChange={event => setShowPastResistance(event.target.checked)} />Past resistance reactions</label>
       </div>
       <div className="candle-ohlc" aria-live="off">
-        {selected ? <><time>{stamp(selected.time)} UTC</time><span>Open <strong>{selected.open.toFixed(2)}</strong></span><span>High <strong>{selected.high.toFixed(2)}</strong></span><span>Low <strong>{selected.low.toFixed(2)}</strong></span><span>Close <strong>{selected.close.toFixed(2)}</strong></span></> : "Waiting for historical prices…"}
+        {selected ? <><time>{stamp(selected.time)} UTC{liveQuoteFresh && selected.time === formingCandle?.time && endTime === null ? selected.partial ? " · Live bar forming · partial" : " · Live bar forming" : ""}</time><span>Open <strong>{selected.open.toFixed(2)}</strong></span><span>High <strong>{selected.high.toFixed(2)}</strong></span><span>Low <strong>{selected.low.toFixed(2)}</strong></span><span>Close <strong>{selected.close.toFixed(2)}</strong></span></> : "Waiting for historical prices…"}
       </div>
       <div ref={chartRef} className="candle-surface" tabIndex={0} role="group" aria-label="Gold candlestick chart. Drag to pan, pinch or scroll to zoom. Arrow keys pan; plus and minus zoom."
         onKeyDown={event => {
