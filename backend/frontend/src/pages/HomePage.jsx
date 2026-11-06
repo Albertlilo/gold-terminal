@@ -22,6 +22,11 @@ function HomePage({
   const realYield = formatMacroObservation(dashboardData?.realYields?.tenYearRealYield);
   const inflation = formatMacroObservation(dashboardData?.inflation?.tenYearBreakeven);
   const fedFunds = formatMacroObservation(dashboardData?.rates?.fedFunds);
+  const targetLower = formatMacroObservation(dashboardData?.rates?.fedPolicy?.targetLower);
+  const targetUpper = formatMacroObservation(dashboardData?.rates?.fedPolicy?.targetUpper);
+  const targetRange = dashboardData?.rates?.fedPolicy?.targetLower?.display
+    && dashboardData?.rates?.fedPolicy?.targetUpper?.display
+    ? `${targetLower} – ${targetUpper}` : "Unavailable";
   const unemployment = formatMacroObservation(dashboardData?.labour?.unemploymentRate);
   const vix = formatMacroObservation(dashboardData?.risk?.vix);
   const m2 = formatMacroObservation(dashboardData?.liquidity?.m2MoneySupply);
@@ -352,7 +357,11 @@ function HomePage({
           title="Rates Watch"
           items={[
             {
-              label: "Fed Funds",
+              label: "Target Range",
+              value: targetRange,
+            },
+            {
+              label: "Effective Fed Funds Rate",
               value: fedFunds,
             },
             {
@@ -425,9 +434,15 @@ function HomePage({
       >
         <div className="home-macro-grid">
           <MetricCard
-            label="Fed Funds"
+            label="Effective Fed Funds Rate"
             value={fedFunds}
-            description="Current policy rate"
+            description="Effective overnight transaction rate"
+          />
+
+          <MetricCard
+            label="Fed Target Range"
+            value={targetRange}
+            description="Federal Reserve announced range"
           />
 
           <MetricCard
@@ -509,6 +524,8 @@ function HomePage({
               value={initialClaims}
             />
           </div>
+          <p className="macro-data-note">ADP estimates private-sector jobs, excludes government payrolls, and does not guarantee NFP. Its existing Gold Score contribution is one weighted input, not a standalone USD signal or a forecast-surprise comparison.</p>
+          <p className="macro-data-note">Fewer claims can mean fewer new benefit applications; this does not necessarily indicate stronger hiring.</p>
         </div>
 
         <div className="home-secondary-panel">

@@ -60,11 +60,23 @@ const getYieldCurve = async (req, res) => {
 
 const getFedFundsRate = async (req, res) => {
   try{
-    const data = await buildSeriesResponse(
-      "DFF",
-      "Federal Funds Effective Rate"
-    );
-    res.status(200).json(data);
+    const [effectiveResult, upperResult, lowerResult] = await Promise.allSettled([
+      buildSeriesResponse("DFF", "Federal Funds Effective Rate"),
+      buildSeriesResponse("DFEDTARU", "Federal Funds Target Range · Upper Limit"),
+      buildSeriesResponse("DFEDTARL", "Federal Funds Target Range · Lower Limit")
+    ]);
+    if (effectiveResult.status === "rejected") throw effectiveResult.reason;
+    const effectiveRate = effectiveResult.value;
+    const targetUpper = upperResult.status === "fulfilled" ? upperResult.value : null;
+    const targetLower = lowerResult.status === "fulfilled" ? lowerResult.value : null;
+    res.status(200).json({ ...effectiveRate, policy: {
+      targetUpper: targetUpper?.latest ?? null,
+      targetLower: targetLower?.latest ?? null,
+      effectiveRate: effectiveRate.latest,
+      sourceCheckedAt: [effectiveRate, targetUpper, targetLower].map(item => item?.fetchedAt)
+        .filter(Boolean).sort().at(-1) ?? null,
+      explanation: "The Federal Reserve sets a target range. The effective federal funds rate measures actual overnight federal funds transactions and may differ from the target range's upper bound."
+    } });
   } catch (error) {
     res.status(503).json({ message: "Economic data is temporarily unavailable." });
   }
@@ -481,13 +493,14 @@ const getNonfarmPayrolls = async (req, res) => {
       "Thousands of Persons"
     );
 
-    const previousMonthlyChange =
-  data.observations[1].value - data.observations[2].value;
+    const currentMonthlyChange = data.latest.display?.value;
+    const previousMonthlyChange = data.latest.display?.previousValue;
+    if (!Number.isFinite(currentMonthlyChange)) throw new Error("Insufficient monthly payroll observations");
 
 const hiringMomentum =
-  data.change > previousMonthlyChange
+  currentMonthlyChange > previousMonthlyChange
     ? "accelerating"
-    : data.change < previousMonthlyChange
+    : currentMonthlyChange < previousMonthlyChange
       ? "slowing"
       : "unchanged";
 
@@ -495,8 +508,13 @@ res.status(200).json({
   series: data.series,
   unit: data.unit,
   payrollLevel: data.latest,
-  jobsAdded: data.change,
+  jobsAdded: currentMonthlyChange,
   previousJobsAdded: previousMonthlyChange,
+  reportingMonth: data.latest.date,
+  observationDate: data.latest.date,
+  officialReleaseTime: "Not available",
+  sourceCheckedAt: data.fetchedAt,
+  freshness: data.stale ? "stale" : "latest available from FRED",
   hiringMomentum,
   fetchedAt: data.fetchedAt,
   observations: data.observations
@@ -515,13 +533,14 @@ const getAdpEmployment = async (req, res) => {
       "Persons"
     );
 
-    const previousMonthlyChange =
-  data.observations[1].value - data.observations[2].value;
+    const currentMonthlyChangeThousands = data.latest.display?.value;
+    const previousMonthlyChangeThousands = data.latest.display?.previousValue;
+    if (!Number.isFinite(currentMonthlyChangeThousands)) throw new Error("Insufficient monthly ADP observations");
 
 const hiringMomentum =
-  data.change > previousMonthlyChange
+  currentMonthlyChangeThousands > previousMonthlyChangeThousands
     ? "accelerating"
-    : data.change < previousMonthlyChange
+    : currentMonthlyChangeThousands < previousMonthlyChangeThousands
       ? "slowing"
       : "unchanged";
 
@@ -529,9 +548,17 @@ res.status(200).json({
   series: data.series,
   unit: data.unit,
   employmentLevel: data.latest,
-  jobsAdded: data.change,
+  jobsAdded: currentMonthlyChangeThousands * 1000,
   employmentDirection: data.direction,
-  previousJobsAdded: previousMonthlyChange,
+  previousJobsAdded: Number.isFinite(previousMonthlyChangeThousands) ? previousMonthlyChangeThousands * 1000 : null,
+  jobsAddedThousands: currentMonthlyChangeThousands,
+  previousJobsAddedThousands: previousMonthlyChangeThousands,
+  reportingMonth: data.latest.date,
+  observationDate: data.latest.date,
+  scope: "Estimated private-sector employment; excludes government payroll employment.",
+  officialReleaseTime: "Not available",
+  sourceCheckedAt: data.fetchedAt,
+  freshness: data.stale ? "stale" : "latest available from FRED",
   hiringMomentum,
   fetchedAt: data.fetchedAt,
   observations: data.observations

@@ -497,6 +497,38 @@ textarea {
   gap: 12px;
 }
 
+.macro-policy-card,
+.macro-context-card {
+  line-height: 1.55;
+}
+
+.macro-policy-card h2 {
+  margin-top: 0;
+}
+
+.macro-policy-meta {
+  display: block;
+  margin-top: 4px;
+  color: #969696;
+}
+
+.macro-policy-card details {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #303030;
+}
+
+.macro-policy-card summary {
+  color: #e5c34b;
+  cursor: pointer;
+}
+
+.macro-data-note {
+  margin: 10px 0 0;
+  color: #a5a5a5;
+  font-size: 0.85rem;
+}
+
 /* HOME FORCES */
 
 .home-force-grid {

@@ -63,7 +63,15 @@ const buildSeriesResponse = async (seriesId, seriesName, limit = 10, unit = rawU
   const fetchedAt = retrievalTimes.get(rawObservations) ?? null;
   const stale = fredRequests.wasStale(rawObservations);
 
-  const latest = { ...observations[0], display: macroPresentation(seriesId, observations, fetchedAt) };
+  const display = macroPresentation(seriesId, observations, fetchedAt);
+  if (display) {
+    display.stale = stale;
+    display.freshness = stale
+      ? "Cached after provider refresh failed"
+      : "FRED request succeeded; official release schedule not verified";
+  }
+  const latest = { ...observations[0], stale, officialReleaseAt: null,
+    officialReleaseLabel: "Not available", display };
   const previous = observations[1];
 
   const change = Number(

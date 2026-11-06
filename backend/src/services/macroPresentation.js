@@ -1,6 +1,8 @@
 // Display transformations only: retain original levels for scoring and other consumers.
 const definitions = {
   DFF: ['%', 'Effective federal funds rate'],
+  DFEDTARU: ['%', 'Federal funds target range · upper limit'],
+  DFEDTARL: ['%', 'Federal funds target range · lower limit'],
   DGS2: ['%', '2-year Treasury yield'], DGS10: ['%', '10-year Treasury yield'],
   DFII10: ['%', 'Inflation-adjusted 10-year yield'],
   T5YIE: ['%', '5-year inflation expectations'], T10YIE: ['%', '10-year inflation expectations'],
@@ -8,7 +10,8 @@ const definitions = {
   PCEPILFE: ['% YoY', 'Core PCE inflation · seasonally adjusted', 'year'],
   PPIACO: ['% YoY', 'All-commodities PPI · not seasonally adjusted', 'year'],
   PAYEMS: ['K jobs', 'Monthly payroll change · seasonally adjusted', 'jobs', 1],
-  ADPMNUSNERSA: ['K jobs', 'Monthly private payroll change · seasonally adjusted', 'jobs', 0.001],
+  ADPMNUSNERSA: ['K jobs', 'Estimated monthly private-sector employment change · seasonally adjusted', 'jobs', 0.001],
+  CES0500000003: ['% MoM', 'Average hourly earnings · private-sector wage growth', 'month'],
   GDPC1: ['% annualized', 'Real GDP · quarter-on-quarter annualized', 'quarter'],
   INDPRO: ['% MoM', 'Industrial production · seasonally adjusted', 'month'],
   RSAFS: ['% MoM', 'Retail sales · seasonally adjusted', 'month'],
@@ -26,7 +29,7 @@ const definitions = {
 
 const rawUnits = {
   PCEPILFE: 'Index 2017=100', PPIACO: 'Index 1982=100',
-  PAYEMS: 'Thousands of persons', ADPMNUSNERSA: 'Persons',
+  PAYEMS: 'Thousands of persons', ADPMNUSNERSA: 'Persons', CES0500000003: 'Dollars per hour',
   GDPC1: 'Billions of chained 2017 dollars', INDPRO: 'Index 2017=100',
   RSAFS: 'Millions of dollars', M2SL: 'Billions of dollars', RRPONTSYD: 'Billions of dollars',
   WTREGEN: 'Millions of dollars', HOUST: 'Thousands of units', ICSA: 'Persons',
@@ -58,11 +61,18 @@ function macroPresentation(seriesId, observations, checkedAt) {
     const result = ((point.value / base.value) ** (mode === 'quarter' ? 4 : 1) - 1) * 100;
     return Number.isFinite(result) ? result : null;
   }
-  return { value: at(0), previousValue: at(1), previousDate: observations[1]?.date ?? null,
+  const value = at(0);
+  const previousValue = at(1);
+  const changeFromPrevious = Number.isFinite(value) && Number.isFinite(previousValue)
+    ? value - previousValue : null;
+  return { value, previousValue, previousDate: observations[1]?.date ?? null,
+    changeFromPrevious,
     unit, description, seriesId, checkedAt, sourceUrl: `https://fred.stlouisfed.org/series/${seriesId}`,
     decimals: unit.startsWith('K ') ? 0 : 2,
     signed: ['jobs', 'month', 'quarter'].includes(mode),
-    status: at(0) === null ? 'Insufficient comparable observations' : 'Latest available observation' };
+    officialReleaseAt: null,
+    officialReleaseLabel: 'Not available',
+    status: value === null ? 'Insufficient comparable observations' : 'Latest available observation' };
 }
 
 module.exports = { macroPresentation, cleanObservations, rawUnits };

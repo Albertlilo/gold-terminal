@@ -48,6 +48,8 @@ test('backend retains raw scoring inputs and caches source-check time without an
     assert.equal(first.change, 29);
     assert.equal(first.unit, 'Thousands of persons');
     assert.equal(first.latest.display.value, 29);
+    assert.equal(first.latest.officialReleaseAt, null);
+    assert.equal(first.latest.display.freshness, 'FRED request succeeded; official release schedule not verified');
     assert.equal(second.fetchedAt, first.fetchedAt);
     assert.equal(second.latest.display.checkedAt, first.fetchedAt);
   } finally {
